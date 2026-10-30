@@ -931,6 +931,7 @@ export function RecruiterPortfolioClient({ initialData }: Props) {
                     <span className="text-xs font-mono text-slate-400">Direct Email:</span>
                     <button
                       onClick={() => handleCopyEmail(data.profile.email)}
+                      aria-label="Copy email address to clipboard"
                       className="text-xs font-mono text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-semibold"
                     >
                       {copiedEmail ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -1107,12 +1108,13 @@ export function RecruiterPortfolioClient({ initialData }: Props) {
             <div className="flex items-start justify-between gap-4 border-b border-[#1b263e] pb-4">
               <div>
                 <span className="text-xs font-mono text-cyan-400 font-semibold uppercase">
-                  {selectedProject.status} // {selectedProject.tagline}
+                  {`${selectedProject.status} // ${selectedProject.tagline}`}
                 </span>
                 <h3 className="text-2xl font-bold text-white mt-1">{selectedProject.name}</h3>
               </div>
               <button
                 onClick={() => setSelectedProject(null)}
+                aria-label="Close project details modal"
                 className="p-2 rounded-xl bg-[#141b2c] hover:bg-[#1f2a44] text-slate-400 hover:text-white transition-colors"
               >
                 <X className="w-5 h-5" />
@@ -1203,6 +1205,7 @@ export function RecruiterPortfolioClient({ initialData }: Props) {
               </div>
               <button
                 onClick={() => setSelectedCertificate(null)}
+                aria-label="Close certificate preview modal"
                 className="p-2 rounded-xl bg-[#141b2c] hover:bg-[#1f2a44] text-slate-400 hover:text-white transition-colors"
               >
                 <X className="w-5 h-5" />

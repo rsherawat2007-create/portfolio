@@ -110,43 +110,43 @@ export default function PortfolioManagerPage() {
   });
   const [showAddSkill, setShowAddSkill] = useState(false);
 
-  // ─── Resume State ───
+  // ─── Resume & Upload State ───
   const [resumeUrl, setResumeUrl] = useState<string>("/uploads/resumes/resume.pdf");
   const [hasResume, setHasResume] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
-  // 1. Authenticate administrator session on mount
-  useEffect(() => {
-    async function verifyAdminAuth() {
-      try {
-        const authRes = await fetch("/api/auth/me");
-        if (!authRes.ok) {
-          router.push("/manage/login?from=/manage");
-          return;
-        }
+  const handleFileUpload = async (file: File, folder: string): Promise<string | null> => {
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", folder);
 
-        const authData = await authRes.json();
-        if (!authData.success || !authData.user) {
-          router.push("/manage/login?from=/manage");
-          return;
-        }
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
 
-        setAdminUser(authData.user);
-        setCheckingAuth(false);
-
-        // Fetch management data only after verified authentication
-        fetchProfile();
-        fetchEducation();
-        fetchCertificates();
-        fetchProjects();
-        fetchSkills();
-        checkResume();
-      } catch {
-        router.push("/manage/login?from=/manage");
+      if (res.status === 401) {
+        handleAuthExpired();
+        return null;
       }
-    }
 
-    verifyAdminAuth();
-  }, []);
+      const data = await res.json();
+      if (data.success && data.data?.url) {
+        showNotification("success", `File uploaded (${data.data.storageProvider}): ${data.data.filename}`);
+        return data.data.url;
+      } else {
+        showNotification("error", data.error || "File upload failed.");
+        return null;
+      }
+    } catch {
+      showNotification("error", "Network error during file upload.");
+      return null;
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -280,6 +280,40 @@ export default function PortfolioManagerPage() {
       setHasResume(false);
     }
   };
+
+  // 1. Authenticate administrator session on mount
+  useEffect(() => {
+    async function verifyAdminAuth() {
+      try {
+        const authRes = await fetch("/api/auth/me");
+        if (!authRes.ok) {
+          router.push("/manage/login?from=/manage");
+          return;
+        }
+
+        const authData = await authRes.json();
+        if (!authData.success || !authData.user) {
+          router.push("/manage/login?from=/manage");
+          return;
+        }
+
+        setAdminUser(authData.user);
+        setCheckingAuth(false);
+
+        // Fetch management data only after verified authentication
+        fetchProfile();
+        fetchEducation();
+        fetchCertificates();
+        fetchProjects();
+        fetchSkills();
+        checkResume();
+      } catch {
+        router.push("/manage/login?from=/manage");
+      }
+    }
+
+    verifyAdminAuth();
+  }, []);
 
   // ─── Profile Handlers ───
   const saveProfile = async () => {
@@ -1050,14 +1084,35 @@ export default function PortfolioManagerPage() {
                       />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="text-xs font-mono text-slate-300 block mb-1">Verification URL</label>
-                      <input
-                        type="url"
-                        value={newCert.verificationUrl}
-                        onChange={(e) => setNewCert({ ...newCert, verificationUrl: e.target.value })}
-                        placeholder="https://verify.certiport.com or https://skilltrack.top/verify.php"
-                        className="w-full px-3 py-2 rounded-xl bg-[#0c101a] border border-[#222d44] text-white text-sm"
-                      />
+                      <label className="text-xs font-mono text-slate-300 block mb-1">
+                        Verification URL or Uploaded Document
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="url"
+                          value={newCert.verificationUrl}
+                          onChange={(e) => setNewCert({ ...newCert, verificationUrl: e.target.value })}
+                          placeholder="https://verify.certiport.com or upload document"
+                          className="flex-1 px-3 py-2 rounded-xl bg-[#0c101a] border border-[#222d44] text-white text-sm"
+                        />
+                        <label className="cursor-pointer shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#172138] hover:bg-[#202c4b] border border-[#26375a] text-cyan-400 text-xs font-mono transition-colors">
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>{uploading ? "..." : "Upload"}</span>
+                          <input
+                            type="file"
+                            accept=".pdf,.png,.jpg,.jpeg,.webp"
+                            className="hidden"
+                            disabled={uploading}
+                            onChange={async (e) => {
+                              const f = e.target.files?.[0];
+                              if (f) {
+                                const url = await handleFileUpload(f, "certificates");
+                                if (url) setNewCert((prev) => ({ ...prev, verificationUrl: url }));
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
                     </div>
                     <div className="sm:col-span-2">
                       <label className="text-xs font-mono text-slate-300 block mb-1">Skills Covered (comma separated)</label>
@@ -1236,14 +1291,35 @@ export default function PortfolioManagerPage() {
                       />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="text-xs font-mono text-slate-300 block mb-1">Live Demo URL (Optional)</label>
-                      <input
-                        type="url"
-                        value={newProject.demoUrl}
-                        onChange={(e) => setNewProject({ ...newProject, demoUrl: e.target.value })}
-                        placeholder="https://demo.example.com"
-                        className="w-full px-3 py-2 rounded-xl bg-[#0c101a] border border-[#222d44] text-white text-sm"
-                      />
+                      <label className="text-xs font-mono text-slate-300 block mb-1">
+                        Live Demo URL or Uploaded Media Asset (Optional)
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="url"
+                          value={newProject.demoUrl}
+                          onChange={(e) => setNewProject({ ...newProject, demoUrl: e.target.value })}
+                          placeholder="https://demo.example.com or upload screenshot"
+                          className="flex-1 px-3 py-2 rounded-xl bg-[#0c101a] border border-[#222d44] text-white text-sm"
+                        />
+                        <label className="cursor-pointer shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#172138] hover:bg-[#202c4b] border border-[#26375a] text-cyan-400 text-xs font-mono transition-colors">
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>{uploading ? "..." : "Upload"}</span>
+                          <input
+                            type="file"
+                            accept=".png,.jpg,.jpeg,.webp,.gif,.pdf"
+                            className="hidden"
+                            disabled={uploading}
+                            onChange={async (e) => {
+                              const f = e.target.files?.[0];
+                              if (f) {
+                                const url = await handleFileUpload(f, "projects");
+                                if (url) setNewProject((prev) => ({ ...prev, demoUrl: url }));
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
                     </div>
                     <div className="sm:col-span-2">
                       <label className="text-xs font-mono text-slate-300 block mb-1">Technologies (Comma Separated)</label>
@@ -1545,16 +1621,34 @@ export default function PortfolioManagerPage() {
                   </div>
                 </div>
 
-                <div className="pt-2 flex items-center gap-3">
+                <div className="pt-2 flex flex-wrap items-center gap-3">
                   <a
-                    href="/uploads/resumes/resume.pdf"
+                    href={resumeUrl}
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-mono font-medium bg-[#141c2e] hover:bg-[#1d2842] text-white border border-[#22304c] transition-colors"
                   >
                     <ExternalLink className="w-4 h-4" />
-                    <span>Preview Current Document</span>
+                    <span>Preview Document</span>
                   </a>
+
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-mono font-medium bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-400 border border-cyan-500/30 transition-colors">
+                    <Upload className="w-4 h-4" />
+                    <span>{uploading ? "Uploading..." : "Upload New Resume PDF"}</span>
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      className="hidden"
+                      disabled={uploading}
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        if (f) {
+                          const url = await handleFileUpload(f, "resumes");
+                          if (url) setResumeUrl(url);
+                        }
+                      }}
+                    />
+                  </label>
                 </div>
               </div>
             </div>

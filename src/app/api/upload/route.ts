@@ -1,31 +1,22 @@
 import { NextRequest } from "next/server";
-import { writeFile, mkdir } from "fs/promises";
-import path from "path";
 import { ok, err, unauthorized, serverError } from "@/lib/api";
 import { requireAuth } from "@/lib/session";
-
-const ALLOWED_MIME_TYPES = new Set([
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-  "image/gif",
-  "application/pdf",
-]);
-
-const ALLOWED_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif", ".pdf"]);
-const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB limit
+import { prisma } from "@/lib/prisma";
+import { uploadFile, MAX_FILE_SIZE } from "@/lib/storage";
 
 export async function POST(req: NextRequest) {
   try {
     // 1. Enforce Server-Side Authentication
-    const auth = await requireAuth();
-    if (!auth) {
+    const session = await requireAuth();
+    if (!session) {
       return unauthorized();
     }
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const folder = (formData.get("folder") as string) || "certificates";
+    const projectId = (formData.get("projectId") as string) || undefined;
+    const certificateId = (formData.get("certificateId") as string) || undefined;
 
     if (!file) {
       return err("No file provided in form data.", 400);
@@ -33,43 +24,48 @@ export async function POST(req: NextRequest) {
 
     // 2. Enforce File Size Limit
     if (file.size > MAX_FILE_SIZE) {
-      return err("File exceeds maximum allowed size (15MB).", 400);
+      return err(`File exceeds maximum allowed size (${MAX_FILE_SIZE / (1024 * 1024)}MB).`, 400);
     }
-
-    // 3. Enforce MIME Type & Extension Whitelist
-    const ext = path.extname(file.name).toLowerCase();
-    if (!ALLOWED_EXTENSIONS.has(ext)) {
-      return err("Invalid file type. Only PDF and image formats (PNG, JPG, WEBP) are permitted.", 400);
-    }
-
-    if (!ALLOWED_MIME_TYPES.has(file.type) && file.type !== "") {
-      return err("Unsupported MIME type.", 400);
-    }
-
-    // 4. Validate Destination Directory
-    const validFolders = ["certificates", "resumes", "photos"];
-    const targetFolder = validFolders.includes(folder) ? folder : "certificates";
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Sanitize filename to prevent directory traversal
-    const baseClean = path.basename(file.name, ext).replace(/[^a-zA-Z0-9_-]/g, "_");
-    const safeName = `${Date.now()}-${baseClean}${ext}`;
+    // 3. Upload to Persistent Storage (Vercel Blob in prod, local in dev)
+    const uploadResult = await uploadFile(buffer, file.name, folder);
 
-    const uploadDir = path.join(process.cwd(), "public", "uploads", targetFolder);
-    await mkdir(uploadDir, { recursive: true });
-
-    const filePath = path.join(uploadDir, safeName);
-    await writeFile(filePath, buffer);
+    // 4. Persist Record to Prisma FileAttachment
+    let fileRecord;
+    try {
+      fileRecord = await prisma.fileAttachment.create({
+        data: {
+          userId: session.id,
+          filename: uploadResult.filename,
+          originalName: file.name,
+          mimeType: uploadResult.mimeType,
+          size: uploadResult.size,
+          storagePath: uploadResult.url,
+          projectId: projectId || null,
+          certificateId: certificateId || null,
+        },
+      });
+    } catch {
+      // If relationship IDs are invalid or table not migrated yet, continue without failure
+      fileRecord = null;
+    }
 
     return ok({
-      url: `/uploads/${targetFolder}/${safeName}`,
-      filename: safeName,
-      size: file.size,
-      type: file.type,
+      url: uploadResult.url,
+      filename: uploadResult.filename,
+      size: uploadResult.size,
+      mimeType: uploadResult.mimeType,
+      storageProvider: uploadResult.storageProvider,
+      id: fileRecord?.id || null,
     });
-  } catch (e) {
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : "File upload failed";
+    if (message.includes("signature mismatch") || message.includes("Unsupported file extension")) {
+      return err(message, 400);
+    }
     return serverError(e);
   }
 }

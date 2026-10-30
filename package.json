@@ -21,7 +21,8 @@
     "test:task3": "node scripts/test-task3-security.js",
     "test:task4": "node scripts/test-task4-infrastructure.js",
     "test:task5": "node scripts/test-task5-dynamic.js",
-    "test:security": "node scripts/test-auth.js && node scripts/test-task2-security.js && node scripts/test-task3-security.js && node scripts/test-task4-infrastructure.js && node scripts/test-task5-dynamic.js",
+    "test:task6": "node scripts/test-task6-storage-and-e2e.js",
+    "test:security": "node scripts/test-auth.js && node scripts/test-task2-security.js && node scripts/test-task3-security.js && node scripts/test-task4-infrastructure.js && node scripts/test-task5-dynamic.js && node scripts/test-task6-storage-and-e2e.js",
     "tunnel": ".bin/cloudflared tunnel --url http://localhost:3000"
   },
   "dependencies": {
@@ -43,6 +44,7 @@
     "@radix-ui/react-tooltip": "^1.1.8",
     "@tanstack/react-query": "^5.81.5",
     "@types/three": "^0.186.0",
+    "@vercel/blob": "^2.8.2",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

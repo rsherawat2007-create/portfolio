@@ -20,16 +20,16 @@ export function AnimatedCounter({
   const [displayValue, setDisplayValue] = useState(0);
 
   useEffect(() => {
-    if (value === 0) {
-      setDisplayValue(0);
-      return;
-    }
+    if (value === 0) return;
 
     // Check reduced motion
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
     if (prefersReducedMotion) {
-      setDisplayValue(value);
-      return;
+      const timer = setTimeout(() => setDisplayValue(value), 0);
+      return () => clearTimeout(timer);
     }
 
     let startTimestamp: number | null = null;

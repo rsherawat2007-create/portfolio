@@ -92,9 +92,9 @@ export interface PublicPortfolioData {
   skills: PublicSkillCategoryDTO[];
   education: PublicEducationDTO[];
   hackathons: PublicHackathonDTO[];
-  experiences: any[];
-  researchPapers: any[];
-  openSourceContribs: any[];
+  experiences: Record<string, unknown>[];
+  researchPapers: Record<string, unknown>[];
+  openSourceContribs: Record<string, unknown>[];
 }
 
 /**
@@ -264,7 +264,7 @@ export async function getPublicPortfolioData(): Promise<PublicPortfolioData> {
     ]);
 
     // Map Projects
-    const projects: PublicProjectDTO[] = dbProjects.map((p, idx) => {
+    const projects: PublicProjectDTO[] = dbProjects.map((p) => {
       const techs = parseStringList(p.technologies);
       const safeRepoUrl = sanitizeRepoUrl(p.githubUrl);
 

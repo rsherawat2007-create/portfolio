@@ -162,8 +162,6 @@ export function CyberShieldScene() {
     scene.add(particleSystem);
 
     // Pointer Interaction (Smooth mouse tilt)
-    let mouseX = 0;
-    let mouseY = 0;
     let targetRotationX = 0;
     let targetRotationY = 0;
 
