@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Shield,
   User,
@@ -21,10 +22,16 @@ import {
   Save,
   RotateCcw,
   AlertCircle,
+  LogOut,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function PortfolioManagerPage() {
+  const router = useRouter();
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [adminUser, setAdminUser] = useState<{ id: string; email: string } | null>(null);
+
   const [activeTab, setActiveTab] = useState<
     "profile" | "education" | "certificates" | "projects" | "skills" | "resume"
   >("profile");
@@ -90,14 +97,55 @@ export default function PortfolioManagerPage() {
   const [resumeUrl, setResumeUrl] = useState<string>("/uploads/resumes/resume.pdf");
   const [hasResume, setHasResume] = useState(false);
 
-  // Load existing records from database
+  // 1. Authenticate administrator session on mount
   useEffect(() => {
-    fetchProfile();
-    fetchEducation();
-    fetchCertificates();
-    fetchProjects();
-    checkResume();
+    async function verifyAdminAuth() {
+      try {
+        const authRes = await fetch("/api/auth/me");
+        if (!authRes.ok) {
+          router.push("/manage/login?from=/manage");
+          return;
+        }
+
+        const authData = await authRes.json();
+        if (!authData.success || !authData.user) {
+          router.push("/manage/login?from=/manage");
+          return;
+        }
+
+        setAdminUser(authData.user);
+        setCheckingAuth(false);
+
+        // Fetch management data only after verified authentication
+        fetchProfile();
+        fetchEducation();
+        fetchCertificates();
+        fetchProjects();
+        checkResume();
+      } catch {
+        router.push("/manage/login?from=/manage");
+      }
+    }
+
+    verifyAdminAuth();
   }, []);
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // ignore
+    }
+    router.push("/manage/login");
+    router.refresh();
+  };
+
+  const handleAuthExpired = () => {
+    showNotification("error", "Session expired. Redirecting to login...");
+    setTimeout(() => {
+      router.push("/manage/login?from=/manage");
+    }, 1200);
+  };
 
   const showNotification = (type: "success" | "error", text: string) => {
     setStatusMsg({ type, text });
@@ -107,6 +155,10 @@ export default function PortfolioManagerPage() {
   const fetchProfile = async () => {
     try {
       const res = await fetch("/api/profile");
+      if (res.status === 401) {
+        handleAuthExpired();
+        return;
+      }
       const data = await res.json();
       if (data.success && data.data) {
         setProfile((prev) => ({
@@ -129,6 +181,10 @@ export default function PortfolioManagerPage() {
   const fetchEducation = async () => {
     try {
       const res = await fetch("/api/education");
+      if (res.status === 401) {
+        handleAuthExpired();
+        return;
+      }
       const data = await res.json();
       if (data.success && Array.isArray(data.data) && data.data.length > 0) {
         const item = data.data[0];
@@ -150,6 +206,10 @@ export default function PortfolioManagerPage() {
   const fetchCertificates = async () => {
     try {
       const res = await fetch("/api/certificates");
+      if (res.status === 401) {
+        handleAuthExpired();
+        return;
+      }
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         // Sort chronologically by issue date
@@ -166,6 +226,10 @@ export default function PortfolioManagerPage() {
   const fetchProjects = async () => {
     try {
       const res = await fetch("/api/projects");
+      if (res.status === 401) {
+        handleAuthExpired();
+        return;
+      }
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         setProjects(data.data);
@@ -193,6 +257,10 @@ export default function PortfolioManagerPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(profile),
       });
+      if (res.status === 401) {
+        handleAuthExpired();
+        return;
+      }
       const data = await res.json();
       if (data.success) {
         showNotification("success", "Profile updated successfully! Public view updated.");
@@ -223,6 +291,10 @@ export default function PortfolioManagerPage() {
           isPublic: true,
         }),
       });
+      if (res.status === 401) {
+        handleAuthExpired();
+        return;
+      }
       const data = await res.json();
       if (data.success) {
         showNotification("success", "Education details saved!");
@@ -245,6 +317,10 @@ export default function PortfolioManagerPage() {
       method: "POST",
       body: formData,
     });
+    if (res.status === 401) {
+      handleAuthExpired();
+      throw new Error("Session expired. Please log in again.");
+    }
     const data = await res.json();
     if (data.success) {
       return data.data.url;
@@ -271,6 +347,10 @@ export default function PortfolioManagerPage() {
           isPublic: true,
         }),
       });
+      if (res.status === 401) {
+        handleAuthExpired();
+        return;
+      }
       const data = await res.json();
       if (data.success) {
         showNotification("success", "Certificate added successfully!");
@@ -301,6 +381,10 @@ export default function PortfolioManagerPage() {
     if (!confirm("Are you sure you want to delete this certificate?")) return;
     try {
       const res = await fetch(`/api/certificates/${id}`, { method: "DELETE" });
+      if (res.status === 401) {
+        handleAuthExpired();
+        return;
+      }
       if (res.ok) {
         showNotification("success", "Certificate removed.");
         fetchCertificates();
@@ -329,6 +413,10 @@ export default function PortfolioManagerPage() {
           isPublic: newProject.isPublic,
         }),
       });
+      if (res.status === 401) {
+        handleAuthExpired();
+        return;
+      }
       const data = await res.json();
       if (data.success) {
         showNotification("success", "Project saved successfully!");
@@ -348,6 +436,10 @@ export default function PortfolioManagerPage() {
     if (!confirm("Are you sure you want to delete this project?")) return;
     try {
       const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
+      if (res.status === 401) {
+        handleAuthExpired();
+        return;
+      }
       if (res.ok) {
         showNotification("success", "Project removed.");
         fetchProjects();
@@ -373,6 +465,15 @@ export default function PortfolioManagerPage() {
     }
   };
 
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col items-center justify-center gap-3">
+        <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
+        <span className="text-xs font-mono text-slate-400">Verifying Administrator Session...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#07090e] text-[#f1f5f9] flex flex-col">
       {/* Top Bar */}
@@ -387,8 +488,8 @@ export default function PortfolioManagerPage() {
           </Link>
           <span className="text-slate-600">|</span>
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-blue-600 flex items-center justify-center text-xs font-bold text-white">
-              P
+            <div className="w-6 h-6 rounded-md bg-cyan-600 flex items-center justify-center text-xs font-bold text-white shadow-sm shadow-cyan-500/20">
+              <Shield className="w-3.5 h-3.5" />
             </div>
             <h1 className="text-sm font-bold text-white tracking-wide">
               Portfolio Content Manager
@@ -397,6 +498,13 @@ export default function PortfolioManagerPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          {adminUser && (
+            <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#141b2c] border border-[#222d44] text-xs font-mono text-slate-300">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span>{adminUser.email}</span>
+            </div>
+          )}
+
           <Link
             href="/"
             target="_blank"
@@ -405,6 +513,14 @@ export default function PortfolioManagerPage() {
             <Eye className="w-3.5 h-3.5 text-cyan-400" />
             <span>Preview Public Site</span>
           </Link>
+
+          <button
+            onClick={handleLogout}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-950/40 hover:bg-red-900/60 border border-red-800/50 text-xs font-medium text-red-300 hover:text-white transition-colors cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5 text-red-400" />
+            <span>Sign Out</span>
+          </button>
         </div>
       </header>
 

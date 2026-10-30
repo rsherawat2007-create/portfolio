@@ -13,6 +13,8 @@
     "db:studio": "prisma studio",
     "db:use-postgres": "node scripts/switch-db.js postgres",
     "db:use-sqlite": "node scripts/switch-db.js sqlite",
+    "db:seed-admin": "node scripts/seed-admin.js",
+    "test:auth": "node scripts/test-auth.js && node scripts/test-api-e2e.js",
     "tunnel": ".bin/cloudflared tunnel --url http://localhost:3000"
   },
   "dependencies": {
