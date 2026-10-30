@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import fs from "fs/promises";
-import path from "path";
+import { prisma } from "@/lib/prisma";
 import { ok, err } from "@/lib/api";
 import { checkContactRateLimit, recordContactSubmission } from "@/lib/rate-limit";
 
@@ -9,11 +8,14 @@ import { checkContactRateLimit, recordContactSubmission } from "@/lib/rate-limit
 const MAX_PAYLOAD_BYTES = 15 * 1024;
 
 /**
- * Strips HTML tags, potential script/iframe tags, control characters, and normalizes whitespace.
+ * Strips script tags and their inner content, style tags, all remaining HTML tags,
+ * and control characters, leaving safe normalized plain text.
  */
 function sanitizeInput(str: string): string {
   return str
-    .replace(/<[^>]*>/g, "") // Strip HTML tags
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
+    .replace(/<[^>]*>/g, "") // Strip any remaining HTML tags
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "") // Strip non-printable ASCII control characters
     .trim();
 }
@@ -53,13 +55,15 @@ function getClientIp(req: NextRequest): string {
 
 /**
  * Public Contact Form Submission Endpoint:
- * Accepts recruiter and visitor messages with strict validation, rate limiting, and spam protection.
+ * Accepts recruiter and visitor messages with strict validation, rate limiting, spam honeypot,
+ * and persistent storage via Prisma (ContactMessage model) without local filesystem writes.
+ * Fully compatible with serverless read-only platforms (Vercel).
  */
 export async function POST(req: NextRequest) {
   const clientIp = getClientIp(req);
 
-  // 1. Rate Limiting Check (Max 5 submissions per 15 minutes per IP)
-  const rateLimit = checkContactRateLimit(clientIp);
+  // 1. Distributed Rate Limiting Check (Max 5 submissions per 15 minutes per IP)
+  const rateLimit = await checkContactRateLimit(clientIp);
   if (!rateLimit.allowed) {
     return NextResponse.json(
       {
@@ -116,41 +120,20 @@ export async function POST(req: NextRequest) {
 
     const { name, email, subject, message } = parsed.data;
 
-    // Record submission count for rate limiting
-    recordContactSubmission(clientIp);
+    // Record submission count for distributed rate limiting
+    await recordContactSubmission(clientIp);
 
-    // 5. Store message securely in private data directory
-    const dataDir = path.join(process.cwd(), "data");
-    const filePath = path.join(dataDir, "messages.json");
-
-    await fs.mkdir(dataDir, { recursive: true });
-
-    let messages: any[] = [];
-    try {
-      const fileData = await fs.readFile(filePath, "utf-8");
-      messages = JSON.parse(fileData);
-      if (!Array.isArray(messages)) messages = [];
-    } catch {
-      messages = [];
-    }
-
-    const newMessage = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-      name,
-      email,
-      subject,
-      message,
-      createdAt: new Date().toISOString(),
-      sourceIp: clientIp.startsWith("127.") ? "localhost" : "remote",
-    };
-
-    messages.push(newMessage);
-    // Keep max 200 recent messages to prevent disk bloat
-    if (messages.length > 200) {
-      messages = messages.slice(-200);
-    }
-
-    await fs.writeFile(filePath, JSON.stringify(messages, null, 2), "utf-8");
+    // 5. Store message securely in persistent database (Prisma ContactMessage)
+    // Serverless-ready: Never writes to local filesystem (compatible with Vercel's read-only runtime)
+    await prisma.contactMessage.create({
+      data: {
+        name,
+        email,
+        subject,
+        message,
+        sourceIp: clientIp.startsWith("127.") ? "localhost" : "remote",
+      },
+    });
 
     return ok({
       received: true,

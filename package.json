@@ -16,7 +16,8 @@
     "db:seed-admin": "node scripts/seed-admin.js",
     "test:auth": "node scripts/test-auth.js && node scripts/test-api-e2e.js",
     "test:api": "node scripts/test-task2-security.js",
-    "test:security": "node scripts/test-auth.js && node scripts/test-task2-security.js",
+    "test:task3": "node scripts/test-task3-security.js",
+    "test:security": "node scripts/test-auth.js && node scripts/test-task2-security.js && node scripts/test-task3-security.js",
     "tunnel": ".bin/cloudflared tunnel --url http://localhost:3000"
   },
   "dependencies": {

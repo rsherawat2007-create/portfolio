@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
   const clientIp = getClientIp(req);
 
   // 1. Rate Limiting Check
-  const rateLimit = checkLoginRateLimit(clientIp);
+  const rateLimit = await checkLoginRateLimit(clientIp);
   if (!rateLimit.allowed) {
     return NextResponse.json(
       {
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
     const isPasswordValid = await bcrypt.compare(password, passwordHashToCompare);
 
     if (!user || !isPasswordValid) {
-      recordFailedLogin(clientIp);
+      await recordFailedLogin(clientIp);
       return NextResponse.json(
         {
           success: false,
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Reset rate limit upon successful login
-    resetLoginRateLimit(clientIp);
+    await resetLoginRateLimit(clientIp);
 
     // 5. Create secure session cookie
     await createSession(user.id, user.email);

@@ -2,8 +2,6 @@ import "server-only";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import fs from "fs";
-import path from "path";
 import crypto from "crypto";
 
 export const SESSION_COOKIE_NAME = "portfolio_admin_session";
@@ -27,58 +25,113 @@ export interface SessionPayload {
   exp?: number;
 }
 
-// ── Server-Side Token Revocation Registry ──
-const revokedTokens = new Map<string, number>(); // jti -> revokedAt timestamp
-
-const REVOCATION_FILE = path.join(process.cwd(), "data", "revoked_tokens.json");
-
-function loadRevokedTokens(): void {
-  try {
-    if (fs.existsSync(REVOCATION_FILE)) {
-      const data = JSON.parse(fs.readFileSync(REVOCATION_FILE, "utf-8"));
-      const now = Date.now();
-      for (const [jti, timestamp] of Object.entries(data)) {
-        // Only load tokens revoked within the last 7 days (older ones naturally expire)
-        if (typeof timestamp === "number" && now - timestamp < SESSION_DURATION) {
-          revokedTokens.set(jti, timestamp);
-        }
-      }
-    }
-  } catch {
-    // Ignore read errors
+/**
+ * Checks optional Upstash Redis REST API if credentials are provided in environment.
+ */
+function getRedisConfig() {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (url && token) {
+    return { url: url.replace(/\/$/, ""), token };
   }
+  return null;
 }
 
-function persistRevokedTokens(): void {
-  try {
-    const dataDir = path.dirname(REVOCATION_FILE);
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
-    }
-    const obj = Object.fromEntries(revokedTokens.entries());
-    fs.writeFileSync(REVOCATION_FILE, JSON.stringify(obj, null, 2), "utf-8");
-  } catch {
-    // Ignore write errors
-  }
-}
-
-// Initialize on module load
-loadRevokedTokens();
-
-export function revokeToken(jti?: string): void {
+/**
+ * Records a revoked token identifier (jti) in shared persistent storage (PostgreSQL/SQLite via Prisma,
+ * and Upstash Redis if configured).
+ * Revocation records persist across multiple serverless/container instances.
+ */
+export async function revokeToken(jti?: string, userId?: string, expiresAt?: Date): Promise<void> {
   if (!jti) return;
-  revokedTokens.set(jti, Date.now());
-  persistRevokedTokens();
+
+  const expiry = expiresAt || new Date(Date.now() + SESSION_DURATION);
+
+  // 1. If Redis is configured, write to Redis with TTL
+  const redis = getRedisConfig();
+  if (redis) {
+    try {
+      const ttlSeconds = Math.max(1, Math.ceil((expiry.getTime() - Date.now()) / 1000));
+      await fetch(`${redis.url}/setex/revoked:${encodeURIComponent(jti)}/${ttlSeconds}/1`, {
+        headers: { Authorization: `Bearer ${redis.token}` },
+      });
+    } catch (err) {
+      console.error("[Session Storage Warning] Redis revocation write failed, using database:", err);
+    }
+  }
+
+  // 2. Persist to shared database via Prisma
+  try {
+    await prisma.revokedToken.upsert({
+      where: { jti },
+      update: { revokedAt: new Date(), expiresAt: expiry },
+      create: {
+        jti,
+        userId: userId || null,
+        revokedAt: new Date(),
+        expiresAt: expiry,
+      },
+    });
+
+    // Opportunistically prune expired revocation records to keep storage compact
+    const now = new Date();
+    await prisma.revokedToken.deleteMany({
+      where: { expiresAt: { lt: now } },
+    });
+  } catch (err) {
+    console.error("[Session Storage Error] Database token revocation write failed:", err);
+  }
 }
 
-export function isTokenRevoked(jti?: string): boolean {
+/**
+ * Checks whether a token jti is revoked.
+ *
+ * SECURITY REQUIREMENT:
+ * "Never silently accept a revoked token when the revocation service fails."
+ * If the database/shared storage check fails with an error, this function FAILS CLOSED
+ * (returns true -> treated as revoked) to prevent unauthorized access.
+ */
+export async function isTokenRevoked(jti?: string): Promise<boolean> {
   if (!jti) return false;
-  return revokedTokens.has(jti);
+
+  // 1. Check Redis if available
+  const redis = getRedisConfig();
+  if (redis) {
+    try {
+      const res = await fetch(`${redis.url}/get/revoked:${encodeURIComponent(jti)}`, {
+        headers: { Authorization: `Bearer ${redis.token}` },
+      });
+      const data = await res.json();
+      if (data && data.result === "1") {
+        return true;
+      }
+    } catch (err) {
+      console.error("[Session Storage Warning] Redis check failed, checking database:", err);
+    }
+  }
+
+  // 2. Check Database via Prisma
+  try {
+    const record = await prisma.revokedToken.findUnique({
+      where: { jti },
+      select: { id: true, expiresAt: true },
+    });
+
+    if (record) {
+      return true;
+    }
+
+    return false;
+  } catch (err) {
+    // FAIL CLOSED: If the revocation storage service is unavailable, do NOT assume the token is valid.
+    console.error("[Session Security Alert] Revocation storage check failed. Failing closed for security.", err);
+    return true; // Treat as revoked
+  }
 }
 
 /**
  * Creates and signs a cryptographically secure JWT session token,
- * embeds a unique jti for revocation tracking, and sets it as an HttpOnly, SameSite=Lax cookie.
+ * embeds a unique jti for distributed revocation tracking, and sets it as an HttpOnly, SameSite=Lax cookie.
  */
 export async function createSession(userId: string, email: string): Promise<string> {
   const secretKey = getSecretKey();
@@ -110,7 +163,7 @@ export async function createSession(userId: string, email: string): Promise<stri
 
 /**
  * Verifies a JWT session token cryptographically.
- * Checks signature, expiration, and server-side revocation status.
+ * Checks signature, expiration, and distributed shared revocation status.
  * Returns the decoded payload if valid, otherwise null.
  */
 export async function verifySessionToken(token?: string | null): Promise<SessionPayload | null> {
@@ -130,9 +183,12 @@ export async function verifySessionToken(token?: string | null): Promise<Session
 
     const jti = typeof payload.jti === "string" ? payload.jti : undefined;
 
-    // Check server-side revocation list
-    if (jti && isTokenRevoked(jti)) {
-      return null;
+    // Check distributed revocation list (fails closed if storage down)
+    if (jti) {
+      const revoked = await isTokenRevoked(jti);
+      if (revoked) {
+        return null;
+      }
     }
 
     return {
@@ -163,7 +219,7 @@ export async function getSession(): Promise<SessionPayload | null> {
 }
 
 /**
- * Invalidate session by revoking the token jti and deleting the cookie.
+ * Invalidate session by revoking the token jti in persistent shared storage and deleting the cookie.
  */
 export async function deleteSession(): Promise<void> {
   try {
@@ -171,9 +227,15 @@ export async function deleteSession(): Promise<void> {
     const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
     if (token) {
-      const payload = await verifySessionToken(token);
-      if (payload?.jti) {
-        revokeToken(payload.jti);
+      try {
+        const secretKey = getSecretKey();
+        const { payload } = await jwtVerify(token, secretKey, { algorithms: ["HS256"] });
+        if (payload?.jti && typeof payload.jti === "string") {
+          const expDate = payload.exp ? new Date(payload.exp * 1000) : undefined;
+          await revokeToken(payload.jti, payload.userId as string, expDate);
+        }
+      } catch {
+        // Token was invalid, proceed with cookie deletion
       }
     }
 
@@ -196,7 +258,7 @@ export async function deleteSession(): Promise<void> {
  *
  * 1. Reads the HTTP-only session cookie.
  * 2. Cryptographically verifies JWT signature and expiration.
- * 3. Verifies that the token has not been revoked server-side.
+ * 3. Verifies that the token has not been revoked in distributed storage.
  * 4. Verifies that the administrator user actually exists in the database.
  * 5. Returns { id, email } ONLY upon valid authentication.
  */
