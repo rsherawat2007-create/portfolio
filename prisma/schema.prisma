@@ -1,0 +1,754 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth ───────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile              Profile?
+  education            Education[]
+  skills               Skill[]
+  skillDependencies    SkillDependency[]
+  roadmaps             Roadmap[]
+  journalEntries       JournalEntry[]
+  dailyLogs            DailyLog[]
+  labs                 Lab[]
+  experiments          Experiment[]
+  projects             Project[]
+  projectMilestones    ProjectMilestone[]
+  certificates         Certificate[]
+  experiences          Experience[]
+  applications         Application[]
+  hackathons           Hackathon[]
+  extracurriculars     ExtracurricularActivity[]
+  researchPapers       ResearchPaper[]
+  openSourceContribs   OpenSourceContribution[]
+  evidence             Evidence[]
+  achievements         Achievement[]
+  goals                Goal[]
+  weeklyReviews        WeeklyReview[]
+  recommendations      Recommendation[]
+  fileAttachments      FileAttachment[]
+  userSettings         UserSettings?
+  mistakeJournals      MistakeJournal[]
+  integratedProjects   IntegratedProject[]
+}
+
+// ─── Profile ─────────────────────────────────────────────────────────────────
+
+model Profile {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  fullName         String?
+  photoUrl         String?
+  headline         String?
+  about            String?
+  location         String?
+  email            String?
+  phone            String?
+  githubUrl        String?
+  linkedinUrl      String?
+  websiteUrl       String?
+  twitterUrl       String?
+  otherLinks       String?  // JSON array of {label, url}
+  careerInterests  String?
+  techInterests    String?
+  currentFocus     String?
+  longTermGoals    String?
+  isPublic         Boolean  @default(false)
+  biographies      String?  // JSON: [{audience, bio}]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Education ───────────────────────────────────────────────────────────────
+
+model Education {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  institution      String
+  qualification    String
+  department       String?
+  specialization   String?
+  startDate        DateTime?
+  endDate          DateTime?
+  isExpected       Boolean  @default(true)
+  status           String   @default("in_progress") // planned, in_progress, completed, discontinued
+  semester         String?
+  gpa              String?
+  subjects         String?  // JSON array
+  academicProjects String?  // JSON array
+  awards           String?  // JSON array
+  institutionUrl   String?
+  notes            String?
+  isPublic         Boolean  @default(false)
+  documents        FileAttachment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Skills ──────────────────────────────────────────────────────────────────
+
+model Skill {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name            String
+  category        String
+  description     String?
+  status          String   @default("planned") // planned, learning, practiced, demonstrated
+  dateStarted     DateTime?
+  lastPracticed   DateTime?
+  resources       String?  // JSON array of {title, url, type}
+  notes           String?
+  nextMilestone   String?
+  isPublic        Boolean  @default(false)
+
+  prerequisites   SkillDependency[] @relation("SkillDependencies")
+  dependents      SkillDependency[] @relation("SkillDependents")
+  evidence        Evidence[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SkillDependency {
+  id            String @id @default(cuid())
+  userId        String
+  user          User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skillId       String
+  skill         Skill  @relation("SkillDependencies", fields: [skillId], references: [id], onDelete: Cascade)
+  prerequisiteId String
+  prerequisite  Skill  @relation("SkillDependents", fields: [prerequisiteId], references: [id], onDelete: Cascade)
+}
+
+// ─── Roadmaps ─────────────────────────────────────────────────────────────────
+
+model Roadmap {
+  id          String         @id @default(cuid())
+  userId      String
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+  category    String         // cybersecurity, ai_ml, integrated, software_eng, career
+  isPublic    Boolean        @default(false)
+  items       RoadmapItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RoadmapItem {
+  id              String    @id @default(cuid())
+  roadmapId       String
+  roadmap         Roadmap   @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+
+  title           String
+  description     String?
+  phase           String?
+  prerequisites   String?   // JSON array of item IDs
+  resources       String?   // JSON array
+  exercises       String?
+  completionCriteria String?
+  targetDate      DateTime?
+  notes           String?
+  status          String    @default("planned") // planned, in_progress, completed, skipped
+  order           Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Learning Journal ────────────────────────────────────────────────────────
+
+model JournalEntry {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title         String
+  date          DateTime @default(now())
+  subject       String?
+  category      String?
+  concepts      String?
+  explanation   String?
+  codeSnippets  String?
+  mistakes      String?
+  solutions     String?
+  questions     String?
+  revisionDate  DateTime?
+  relatedSkills String?  // JSON array of skill IDs
+  relatedProjects String? // JSON array of project IDs
+  tags          String?  // JSON array
+  isPublic      Boolean  @default(false)
+  attachments   FileAttachment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DailyLog {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date          DateTime
+  studied       String?
+  practiced     String?
+  understood    String?
+  confused      String?
+  built         String?
+  toRevise      String?
+  nextSteps     String?
+  activityType  String   @default("study") // study, lab, project, experiment, review
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Cybersecurity Labs ───────────────────────────────────────────────────────
+
+model Lab {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title           String
+  platform        String?
+  topic           String?
+  category        String?   // networking, linux, web_security, auth, vuln_analysis, defensive, etc.
+  difficulty      String?   // beginner, intermediate, advanced
+  startDate       DateTime?
+  completionDate  DateTime?
+  status          String    @default("planned") // planned, in_progress, completed, reviewed
+  objectives      String?
+  toolsUsed       String?   // JSON array
+  conceptsLearned String?
+  notes           String?
+  findings        String?
+  remediation     String?
+  sourceUrl       String?
+  relatedSkills   String?   // JSON array of skill IDs
+  isPublic        Boolean   @default(false)
+  attachments     FileAttachment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── ML/AI Experiments ───────────────────────────────────────────────────────
+
+model Experiment {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name              String
+  problemStatement  String?
+  objective         String?
+  datasetName       String?
+  datasetSource     String?
+  datasetLicense    String?
+  preprocessing     String?
+  featureSelection  String?
+  modelType         String?
+  baseline          String?
+  modelVersion      String?
+  trainingConfig    String?   // JSON
+  evalMethodology   String?
+  trainTestSplit    String?
+  metrics           String?   // JSON: {accuracy, precision, recall, f1, etc.}
+  results           String?
+  limitations       String?
+  observations      String?
+  repositoryUrl     String?
+  category          String?   // classification, regression, clustering, nlp, deep_learning, anomaly
+  relatedSkills     String?   // JSON array
+  relatedProjects   String?   // JSON array
+  status            String    @default("planned") // planned, in_progress, completed, archived
+  isPublic          Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Projects ────────────────────────────────────────────────────────────────
+
+model Project {
+  id                String             @id @default(cuid())
+  userId            String
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name              String
+  summary           String?
+  problemStatement  String?
+  objectives        String?
+  category          String?
+  technologies      String?            // JSON array
+  myContribution    String?
+  teamMembers       String?            // JSON array
+  startDate         DateTime?
+  completionDate    DateTime?
+  status            String             @default("idea") // idea, planned, in_development, testing, completed, archived
+  githubUrl         String?
+  demoUrl           String?
+  featuresImpl      String?
+  featuresPlanned   String?
+  testingResults    String?
+  evalMethodology   String?
+  measuredOutcomes  String?
+  limitations       String?
+  futureImprovements String?
+  associatedSkills  String?            // JSON array
+  associatedEvent   String?
+  isPublic          Boolean            @default(false)
+  milestones        ProjectMilestone[]
+  attachments       FileAttachment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ProjectMilestone {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+  date        DateTime?
+  type        String?   // milestone, bugfix, feature, release, improvement
+  status      String    @default("planned") // planned, completed
+
+  createdAt DateTime @default(now())
+}
+
+// ─── Certificates ────────────────────────────────────────────────────────────
+
+model Certificate {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title           String
+  issuer          String?
+  issueDate       DateTime?
+  expiryDate      DateTime?
+  credentialId    String?
+  verificationUrl String?
+  skillsCovered   String?   // JSON array
+  duration        String?
+  status          String    @default("planned") // planned, in_progress, completed, expired
+  isVerified      Boolean   @default(false)
+  notes           String?
+  isPublic        Boolean   @default(false)
+  attachments     FileAttachment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Experience ──────────────────────────────────────────────────────────────
+
+model Experience {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  organization    String
+  role            String
+  type            String?   // internship, part_time, full_time, volunteer, freelance, research
+  startDate       DateTime?
+  endDate         DateTime?
+  isCurrent       Boolean   @default(false)
+  responsibilities String?
+  tasksCompleted  String?
+  technologies    String?   // JSON array
+  skillsDemonstrated String? // JSON array
+  deliverables    String?
+  outcomes        String?
+  supervisor      String?
+  notes           String?
+  isPublic        Boolean   @default(false)
+  attachments     FileAttachment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Application {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  organization    String
+  role            String
+  status          String    @default("interested") // interested, preparing, applied, interviewing, offer_received, in_progress, completed, rejected, withdrawn
+  deadline        DateTime?
+  appliedDate     DateTime?
+  notes           String?
+  prepTasks       String?   // JSON array
+  interviewReflections String?
+  link            String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Hackathons ──────────────────────────────────────────────────────────────
+
+model Hackathon {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  eventName         String
+  organizer         String?
+  type              String?   // hackathon, ideathon, ctf, coding_comp, research_comp, college_event, workshop, conference
+  date              DateTime?
+  endDate           DateTime?
+  location          String?
+  isOnline          Boolean   @default(false)
+  registrationStatus String?  // registered, not_registered
+  participationStatus String  @default("registered") // registered, attended, participated, shortlisted, finalist, winner
+  teamName          String?
+  teamMembers       String?   // JSON array
+  myRole            String?
+  problemStatement  String?
+  projectName       String?
+  technologies      String?   // JSON array
+  repositoryUrl     String?
+  demoUrl           String?
+  result            String?
+  rank              String?
+  lessonsLearned    String?
+  futureImprovements String?
+  notes             String?
+  isPublic          Boolean   @default(false)
+  attachments       FileAttachment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Extracurricular ────────────────────────────────────────────────────────
+
+model ExtracurricularActivity {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  activity      String
+  organization  String?
+  role          String?
+  category      String?   // club, leadership, volunteer, cultural, sports, public_speaking, open_source, research, other
+  startDate     DateTime?
+  endDate       DateTime?
+  isCurrent     Boolean   @default(false)
+  contribution  String?
+  outcomes      String?
+  notes         String?
+  isPublic      Boolean   @default(false)
+  attachments   FileAttachment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Research ────────────────────────────────────────────────────────────────
+
+model ResearchPaper {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title           String
+  authors         String?
+  publication     String?
+  url             String?
+  doi             String?
+  date            DateTime?
+  topic           String?
+  summary         String?
+  researchQuestions String?
+  methodology     String?
+  findings        String?
+  limitations     String?
+  notes           String?
+  relatedProjects String?   // JSON array
+  status          String    @default("reading") // reading, reproduced, writing, submitted, published
+  isPublic        Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OpenSourceContribution {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  repository      String
+  organization    String?
+  issueLinks      String?   // JSON array
+  prLinks         String?   // JSON array
+  description     String?
+  technologies    String?   // JSON array
+  startDate       DateTime?
+  endDate         DateTime?
+  status          String    @default("proposed") // proposed, open, merged, rejected
+  reviewFeedback  String?
+  lessonsLearned  String?
+  isPublic        Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Evidence ────────────────────────────────────────────────────────────────
+
+model Evidence {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skillId         String?
+  skill           Skill?    @relation(fields: [skillId], references: [id], onDelete: SetNull)
+
+  title           String
+  description     String?
+  sourceUrl       String?
+  type            String?   // github, screenshot, lab_report, test_result, doc, demo, certificate, research
+  associatedWith  String?   // JSON: {type, id} - skill, project, achievement, etc.
+  date            DateTime  @default(now())
+  isPublic        Boolean   @default(false)
+  isVerified      Boolean   @default(false)
+  attachments     FileAttachment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Achievements & Goals ────────────────────────────────────────────────────
+
+model Achievement {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+  type        String?   // badge, milestone, certificate, award, contribution
+  earnedAt    DateTime?
+  isEarned    Boolean   @default(false)
+  condition   String?
+  evidence    String?   // JSON
+  isPublic    Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Goal {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title         String
+  description   String?
+  category      String?
+  targetDate    DateTime?
+  status        String    @default("active") // active, completed, paused, cancelled
+  completedAt   DateTime?
+  milestones    String?   // JSON array
+  notes         String?
+  isPublic      Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Weekly Reviews ──────────────────────────────────────────────────────────
+
+model WeeklyReview {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  weekStart         DateTime
+  weekEnd           DateTime
+  tasksCompleted    String?   // JSON array
+  tasksCarried      String?   // JSON array
+  skillsPracticed   String?   // JSON array
+  projectsAdvanced  String?   // JSON array
+  labsCompleted     String?   // JSON array
+  journalEntries    Int       @default(0)
+  problemsSolved    Int       @default(0)
+  gapsIdentified    String?   // JSON array
+  goalsAchieved     String?   // JSON array
+  wentWell          String?
+  difficult         String?
+  learned           String?
+  toChange          String?
+  nextPriority      String?
+  priorities        String?   // JSON array for next week
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── AI Recommendations ──────────────────────────────────────────────────────
+
+model Recommendation {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type          String    // learning, career, project, revision
+  title         String
+  reason        String?
+  prerequisites String?
+  resources     String?   // JSON array
+  exercise      String?
+  criterion     String?
+  connection    String?
+  isAiGenerated Boolean   @default(false)
+  status        String    @default("pending") // pending, accepted, dismissed, completed
+  helpful       Boolean?
+  notes         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Mistake Journal ─────────────────────────────────────────────────────────
+
+model MistakeJournal {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  problem         String
+  context         String?
+  expected        String?
+  actual          String?
+  errorMessages   String?
+  rootCause       String?
+  solution        String?
+  lessons         String?
+  prevention      String?
+  relatedSkill    String?
+  relatedProject  String?
+  links           String?   // JSON array
+  tags            String?   // JSON array
+  category        String?   // lab, project, experiment, interview, study
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Integrated AI+Security Projects ────────────────────────────────────────
+
+model IntegratedProject {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title           String
+  topic           String?   // phishing_detection, nids, log_analysis, anomaly, malware, threat_intel, etc.
+  description     String?
+  prereqSkills    String?   // JSON array
+  notes           String?
+  labs            String?   // JSON array of lab IDs
+  papers          String?   // JSON array of paper IDs
+  datasets        String?
+  experiments     String?   // JSON array of experiment IDs
+  repositories    String?
+  projects        String?   // JSON array of project IDs
+  evalResults     String?
+  status          String    @default("research") // research, planning, in_progress, completed
+  isPublic        Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Files ───────────────────────────────────────────────────────────────────
+
+model FileAttachment {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  filename      String
+  originalName  String
+  mimeType      String
+  size          Int
+  storagePath   String
+  uploadedAt    DateTime  @default(now())
+
+  educationId   String?
+  education     Education? @relation(fields: [educationId], references: [id], onDelete: SetNull)
+  labId         String?
+  lab           Lab?       @relation(fields: [labId], references: [id], onDelete: SetNull)
+  projectId     String?
+  project       Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  certificateId String?
+  certificate   Certificate? @relation(fields: [certificateId], references: [id], onDelete: SetNull)
+  experienceId  String?
+  experience    Experience? @relation(fields: [experienceId], references: [id], onDelete: SetNull)
+  hackathonId   String?
+  hackathon     Hackathon? @relation(fields: [hackathonId], references: [id], onDelete: SetNull)
+  extracurricularId String?
+  extracurricular ExtracurricularActivity? @relation(fields: [extracurricularId], references: [id], onDelete: SetNull)
+  journalEntryId String?
+  journalEntry  JournalEntry? @relation(fields: [journalEntryId], references: [id], onDelete: SetNull)
+  evidenceId    String?
+  evidenceItem  Evidence? @relation(fields: [evidenceId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+}
+
+// ─── Settings ────────────────────────────────────────────────────────────────
+
+model UserSettings {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  theme           String   @default("dark") // dark, light
+  timezone        String   @default("UTC")
+  xpEnabled       Boolean  @default(true)
+  badgesEnabled   Boolean  @default(true)
+  streaksEnabled  Boolean  @default(true)
+  aiEnabled       Boolean  @default(false)
+  geminiApiKey    String?  // encrypted, stored server-side only
+  profilePublic   Boolean  @default(false)
+  publicUsername  String?  @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
