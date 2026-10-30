@@ -13,11 +13,14 @@
     "db:studio": "prisma studio",
     "db:use-postgres": "node scripts/switch-db.js postgres",
     "db:use-sqlite": "node scripts/switch-db.js sqlite",
+    "db:migrate-data": "node scripts/migrate-sqlite-to-postgres.js",
+    "db:migrate-deploy": "prisma migrate deploy",
     "db:seed-admin": "node scripts/seed-admin.js",
     "test:auth": "node scripts/test-auth.js && node scripts/test-api-e2e.js",
     "test:api": "node scripts/test-task2-security.js",
     "test:task3": "node scripts/test-task3-security.js",
-    "test:security": "node scripts/test-auth.js && node scripts/test-task2-security.js && node scripts/test-task3-security.js",
+    "test:task4": "node scripts/test-task4-infrastructure.js",
+    "test:security": "node scripts/test-auth.js && node scripts/test-task2-security.js && node scripts/test-task3-security.js && node scripts/test-task4-infrastructure.js",
     "tunnel": ".bin/cloudflared tunnel --url http://localhost:3000"
   },
   "dependencies": {

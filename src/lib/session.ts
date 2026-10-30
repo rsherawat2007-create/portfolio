@@ -52,11 +52,14 @@ export async function revokeToken(jti?: string, userId?: string, expiresAt?: Dat
   if (redis) {
     try {
       const ttlSeconds = Math.max(1, Math.ceil((expiry.getTime() - Date.now()) / 1000));
-      await fetch(`${redis.url}/setex/revoked:${encodeURIComponent(jti)}/${ttlSeconds}/1`, {
+      const res = await fetch(`${redis.url}/setex/revoked:${encodeURIComponent(jti)}/${ttlSeconds}/1`, {
         headers: { Authorization: `Bearer ${redis.token}` },
       });
+      if (!res.ok) {
+        throw new Error(`Redis setex HTTP ${res.status}`);
+      }
     } catch (err) {
-      console.error("[Session Storage Warning] Redis revocation write failed, using database:", err);
+      console.error("[Session Storage Warning] Redis revocation write failed, using database:", (err as Error).message);
     }
   }
 
@@ -101,12 +104,15 @@ export async function isTokenRevoked(jti?: string): Promise<boolean> {
       const res = await fetch(`${redis.url}/get/revoked:${encodeURIComponent(jti)}`, {
         headers: { Authorization: `Bearer ${redis.token}` },
       });
+      if (!res.ok) {
+        throw new Error(`Redis get HTTP ${res.status}`);
+      }
       const data = await res.json();
       if (data && data.result === "1") {
         return true;
       }
     } catch (err) {
-      console.error("[Session Storage Warning] Redis check failed, checking database:", err);
+      console.error("[Session Storage Warning] Redis check failed, checking database:", (err as Error).message);
     }
   }
 

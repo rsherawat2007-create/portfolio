@@ -54,6 +54,9 @@ async function checkSharedRateLimit(
       const res = await fetch(`${redis.url}/get/${encodeURIComponent(key)}`, {
         headers: { Authorization: `Bearer ${redis.token}` },
       });
+      if (!res.ok) {
+        throw new Error(`Redis GET HTTP ${res.status}`);
+      }
       const data = await res.json();
       const currentAttempts = data.result ? parseInt(data.result, 10) : 0;
 
@@ -62,8 +65,8 @@ async function checkSharedRateLimit(
         const ttlRes = await fetch(`${redis.url}/ttl/${encodeURIComponent(key)}`, {
           headers: { Authorization: `Bearer ${redis.token}` },
         });
-        const ttlData = await ttlRes.json();
-        const retryAfterSeconds = Math.max(1, ttlData.result || Math.ceil(windowMs / 1000));
+        const ttlData = ttlRes.ok ? await ttlRes.json() : null;
+        const retryAfterSeconds = Math.max(1, (ttlData && ttlData.result) || Math.ceil(windowMs / 1000));
 
         return {
           allowed: false,
@@ -78,7 +81,7 @@ async function checkSharedRateLimit(
         retryAfterSeconds: 0,
       };
     } catch (err) {
-      console.warn("[RateLimit Storage Warning] Redis check failed, falling back to database:", err);
+      console.warn("[RateLimit Storage Warning] Redis check failed, falling back to database:", (err as Error).message);
     }
   }
 
@@ -148,8 +151,8 @@ async function recordSharedAttempt(
   if (redis) {
     try {
       const windowSeconds = Math.ceil(windowMs / 1000);
-      // Pipeline: INCR key, then EXPIRE key windowSeconds if new
-      await fetch(`${redis.url}/pipeline`, {
+      // Pipeline: INCR key, then EXPIRE key windowSeconds NX (only if key has no expiry)
+      const res = await fetch(`${redis.url}/pipeline`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${redis.token}`,
@@ -157,12 +160,15 @@ async function recordSharedAttempt(
         },
         body: JSON.stringify([
           ["INCR", key],
-          ["EXPIRE", key, windowSeconds],
+          ["EXPIRE", key, windowSeconds, "NX"],
         ]),
       });
+      if (!res.ok) {
+        throw new Error(`Redis pipeline HTTP ${res.status}`);
+      }
       return;
     } catch (err) {
-      console.warn("[RateLimit Storage Warning] Redis record failed, recording to database:", err);
+      console.warn("[RateLimit Storage Warning] Redis record failed, recording to database:", (err as Error).message);
     }
   }
 
