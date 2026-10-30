@@ -60,7 +60,7 @@
     "recharts": "^3.10.1",
     "tailwind-merge": "^3.7.0",
     "three": "^0.186.1",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
@@ -73,7 +73,8 @@
     "eslint-config-next": "^16.4.3",
     "prisma": "^5.22.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vercel": "^65.8.0"
   },
   "overrides": {
     "@vercel/cli-config": {
