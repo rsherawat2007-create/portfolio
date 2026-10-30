@@ -105,6 +105,8 @@ model Education {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // ─── Skills ──────────────────────────────────────────────────────────────────
@@ -131,6 +133,8 @@ model Skill {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model SkillDependency {
@@ -141,6 +145,10 @@ model SkillDependency {
   skill         Skill  @relation("SkillDependencies", fields: [skillId], references: [id], onDelete: Cascade)
   prerequisiteId String
   prerequisite  Skill  @relation("SkillDependents", fields: [prerequisiteId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([skillId])
+  @@index([prerequisiteId])
 }
 
 // ─── Roadmaps ─────────────────────────────────────────────────────────────────
@@ -158,6 +166,8 @@ model Roadmap {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model RoadmapItem {
@@ -179,6 +189,8 @@ model RoadmapItem {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([roadmapId])
 }
 
 // ─── Learning Journal ────────────────────────────────────────────────────────
@@ -207,6 +219,8 @@ model JournalEntry {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model DailyLog {
@@ -226,6 +240,8 @@ model DailyLog {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // ─── Cybersecurity Labs ───────────────────────────────────────────────────────
@@ -256,6 +272,8 @@ model Lab {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // ─── ML/AI Experiments ───────────────────────────────────────────────────────
@@ -292,6 +310,8 @@ model Experiment {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // ─── Projects ────────────────────────────────────────────────────────────────
@@ -329,6 +349,8 @@ model Project {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model ProjectMilestone {
@@ -345,6 +367,9 @@ model ProjectMilestone {
   status      String    @default("planned") // planned, completed
 
   createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([projectId])
 }
 
 // ─── Certificates ────────────────────────────────────────────────────────────
@@ -370,6 +395,8 @@ model Certificate {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // ─── Experience ──────────────────────────────────────────────────────────────
@@ -398,6 +425,8 @@ model Experience {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model Application {
@@ -417,6 +446,8 @@ model Application {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // ─── Hackathons ──────────────────────────────────────────────────────────────
@@ -453,6 +484,8 @@ model Hackathon {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // ─── Extracurricular ────────────────────────────────────────────────────────
@@ -477,6 +510,8 @@ model ExtracurricularActivity {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // ─── Research ────────────────────────────────────────────────────────────────
@@ -505,6 +540,8 @@ model ResearchPaper {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model OpenSourceContribution {
@@ -527,6 +564,8 @@ model OpenSourceContribution {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // ─── Evidence ────────────────────────────────────────────────────────────────
@@ -550,6 +589,9 @@ model Evidence {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([skillId])
 }
 
 // ─── Achievements & Goals ────────────────────────────────────────────────────
@@ -570,6 +612,8 @@ model Achievement {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model Goal {
@@ -589,6 +633,8 @@ model Goal {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // ─── Weekly Reviews ──────────────────────────────────────────────────────────
@@ -618,6 +664,8 @@ model WeeklyReview {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // ─── AI Recommendations ──────────────────────────────────────────────────────
@@ -642,6 +690,8 @@ model Recommendation {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // ─── Mistake Journal ─────────────────────────────────────────────────────────
@@ -668,6 +718,8 @@ model MistakeJournal {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // ─── Integrated AI+Security Projects ────────────────────────────────────────
@@ -694,6 +746,8 @@ model IntegratedProject {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // ─── Files ───────────────────────────────────────────────────────────────────
@@ -730,6 +784,17 @@ model FileAttachment {
   evidenceItem  Evidence? @relation(fields: [evidenceId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([educationId])
+  @@index([labId])
+  @@index([projectId])
+  @@index([certificateId])
+  @@index([experienceId])
+  @@index([hackathonId])
+  @@index([extracurricularId])
+  @@index([journalEntryId])
+  @@index([evidenceId])
 }
 
 // ─── Settings ────────────────────────────────────────────────────────────────

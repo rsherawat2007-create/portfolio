@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "next build --webpack",
+    "build": "prisma generate && next build --webpack",
+    "postinstall": "prisma generate",
     "render-build": "npx prisma generate && next build --webpack",
     "start": "next start",
     "lint": "eslint",
@@ -23,7 +24,8 @@
     "test:task4": "node scripts/test-task4-infrastructure.js",
     "test:task5": "node scripts/test-task5-dynamic.js",
     "test:task6": "node scripts/test-task6-storage-and-e2e.js",
-    "test:security": "node scripts/test-auth.js && node scripts/test-task2-security.js && node scripts/test-task3-security.js && node scripts/test-task4-infrastructure.js && node scripts/test-task5-dynamic.js && node scripts/test-task6-storage-and-e2e.js",
+    "test:task9": "node scripts/test-task9-security.js",
+    "test:security": "node scripts/test-auth.js && node scripts/test-task2-security.js && node scripts/test-task3-security.js && node scripts/test-task4-infrastructure.js && node scripts/test-task5-dynamic.js && node scripts/test-task6-storage-and-e2e.js && node scripts/test-task9-security.js",
     "tunnel": ".bin/cloudflared tunnel --url http://localhost:3000"
   },
   "dependencies": {
