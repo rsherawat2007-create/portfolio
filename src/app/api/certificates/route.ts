@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/session";
@@ -41,6 +42,11 @@ export async function POST(req: NextRequest) {
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) return err("Validation failed", 400, parsed.error.flatten());
     const cert = await prisma.certificate.create({ data: { userId: auth.id, ...parsed.data } });
+    try {
+      revalidatePath("/");
+    } catch {
+      // ignore
+    }
     return ok(cert);
   } catch (e) {
     return serverError(e);

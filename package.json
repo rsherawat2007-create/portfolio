@@ -20,7 +20,8 @@
     "test:api": "node scripts/test-task2-security.js",
     "test:task3": "node scripts/test-task3-security.js",
     "test:task4": "node scripts/test-task4-infrastructure.js",
-    "test:security": "node scripts/test-auth.js && node scripts/test-task2-security.js && node scripts/test-task3-security.js && node scripts/test-task4-infrastructure.js",
+    "test:task5": "node scripts/test-task5-dynamic.js",
+    "test:security": "node scripts/test-auth.js && node scripts/test-task2-security.js && node scripts/test-task3-security.js && node scripts/test-task4-infrastructure.js && node scripts/test-task5-dynamic.js",
     "tunnel": ".bin/cloudflared tunnel --url http://localhost:3000"
   },
   "dependencies": {

@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/session";
@@ -47,6 +48,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!parsed.success) return err("Validation failed", 400, parsed.error.flatten());
 
     const skill = await prisma.skill.update({ where: { id }, data: parsed.data });
+    try {
+      revalidatePath("/");
+    } catch {
+      // ignore
+    }
     return ok(skill);
   } catch (e) {
     return serverError(e);
@@ -61,6 +67,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const existing = await getOwnedSkill(id, auth.id);
     if (!existing) return notFound("Skill");
     await prisma.skill.delete({ where: { id } });
+    try {
+      revalidatePath("/");
+    } catch {
+      // ignore
+    }
     return ok({ deleted: true });
   } catch (e) {
     return serverError(e);

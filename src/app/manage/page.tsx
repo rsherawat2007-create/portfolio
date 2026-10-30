@@ -18,12 +18,15 @@ import {
   Plus,
   ExternalLink,
   Eye,
+  EyeOff,
   ArrowLeft,
   Save,
   RotateCcw,
   AlertCircle,
   LogOut,
   Loader2,
+  Check,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -43,8 +46,7 @@ export default function PortfolioManagerPage() {
   const [profile, setProfile] = useState({
     fullName: "Rahul Sehrawat",
     headline: "BTech CSE (AI & ML) Student | Cybersecurity & Web Security",
-    about:
-      "I am a BTech Computer Science and Engineering student specializing in Artificial Intelligence and Machine Learning, with a strong interest in Cybersecurity and Web Application Security Testing.\n\nI am building my technical foundation through programming, computer networking, Linux, machine learning, and hands-on practice with security tools such as Burp Suite and OWASP ZAP. I enjoy exploring how technology works, solving technical problems, and developing projects that combine practical engineering with innovative ideas.\n\nMy goal is to grow into a skilled professional at the intersection of AI/ML and cybersecurity by continuously learning, building real-world projects, and improving my problem-solving abilities. I believe in learning by doing, documenting my progress, and keeping my work authentic and verifiable.",
+    about: "",
     location: "Mankrola, Gurugram, Haryana, India",
     email: "rsherawat2007@gmail.com",
     githubUrl: "https://github.com/rsherawat2007-create",
@@ -65,6 +67,7 @@ export default function PortfolioManagerPage() {
 
   // ─── Certificates State ───
   const [certificates, setCertificates] = useState<any[]>([]);
+  const [editingCertId, setEditingCertId] = useState<string | null>(null);
   const [newCert, setNewCert] = useState({
     title: "",
     issuer: "",
@@ -74,24 +77,38 @@ export default function PortfolioManagerPage() {
     skillsCovered: "",
     notes: "",
     isVerified: true,
-    fileUrl: "",
+    isPublic: true,
   });
   const [showAddCert, setShowAddCert] = useState(false);
 
   // ─── Projects State ───
   const [projects, setProjects] = useState<any[]>([]);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [newProject, setNewProject] = useState({
     name: "",
+    category: "",
     summary: "",
     problemStatement: "",
     myContribution: "",
     technologies: "",
     status: "in_development",
-    githubUrl: "https://github.com/rsherawat2007-create",
+    githubUrl: "",
     demoUrl: "",
     isPublic: true,
   });
   const [showAddProject, setShowAddProject] = useState(false);
+
+  // ─── Skills State ───
+  const [skills, setSkills] = useState<any[]>([]);
+  const [editingSkillId, setEditingSkillId] = useState<string | null>(null);
+  const [newSkill, setNewSkill] = useState({
+    name: "",
+    category: "Programming",
+    status: "practiced",
+    notes: "",
+    isPublic: true,
+  });
+  const [showAddSkill, setShowAddSkill] = useState(false);
 
   // ─── Resume State ───
   const [resumeUrl, setResumeUrl] = useState<string>("/uploads/resumes/resume.pdf");
@@ -121,6 +138,7 @@ export default function PortfolioManagerPage() {
         fetchEducation();
         fetchCertificates();
         fetchProjects();
+        fetchSkills();
         checkResume();
       } catch {
         router.push("/manage/login?from=/manage");
@@ -212,7 +230,6 @@ export default function PortfolioManagerPage() {
       }
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
-        // Sort chronologically by issue date
         const sorted = data.data.sort(
           (a: any, b: any) => new Date(b.issueDate || 0).getTime() - new Date(a.issueDate || 0).getTime()
         );
@@ -239,6 +256,22 @@ export default function PortfolioManagerPage() {
     }
   };
 
+  const fetchSkills = async () => {
+    try {
+      const res = await fetch("/api/skills");
+      if (res.status === 401) {
+        handleAuthExpired();
+        return;
+      }
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data)) {
+        setSkills(data.data);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const checkResume = async () => {
     try {
       const res = await fetch("/uploads/resumes/resume.pdf", { method: "HEAD" });
@@ -248,7 +281,7 @@ export default function PortfolioManagerPage() {
     }
   };
 
-  // ─── Save Handlers ───
+  // ─── Profile Handlers ───
   const saveProfile = async () => {
     setSaving(true);
     try {
@@ -274,6 +307,7 @@ export default function PortfolioManagerPage() {
     }
   };
 
+  // ─── Education Handlers ───
   const saveEducation = async () => {
     setSaving(true);
     try {
@@ -308,72 +342,99 @@ export default function PortfolioManagerPage() {
     }
   };
 
-  const handleFileUpload = async (file: File, folder: string) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("folder", folder);
-
-    const res = await fetch("/api/upload", {
-      method: "POST",
-      body: formData,
-    });
-    if (res.status === 401) {
-      handleAuthExpired();
-      throw new Error("Session expired. Please log in again.");
-    }
-    const data = await res.json();
-    if (data.success) {
-      return data.data.url;
-    }
-    throw new Error(data.error || "Upload failed");
-  };
-
-  const addCertificate = async (e: React.FormEvent) => {
+  // ─── Certificate Handlers ───
+  const saveCertificate = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
-      const res = await fetch("/api/certificates", {
-        method: "POST",
+      const method = editingCertId ? "PATCH" : "POST";
+      const url = editingCertId ? `/api/certificates/${editingCertId}` : "/api/certificates";
+
+      const payload = {
+        title: newCert.title,
+        issuer: newCert.issuer,
+        issueDate: newCert.issueDate ? new Date(newCert.issueDate).toISOString() : new Date().toISOString(),
+        credentialId: newCert.credentialId || null,
+        verificationUrl: newCert.verificationUrl || null,
+        skillsCovered: newCert.skillsCovered || null,
+        notes: newCert.notes || null,
+        isVerified: newCert.isVerified,
+        isPublic: newCert.isPublic,
+      };
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: newCert.title,
-          issuer: newCert.issuer,
-          issueDate: newCert.issueDate ? new Date(newCert.issueDate).toISOString() : new Date().toISOString(),
-          credentialId: newCert.credentialId || null,
-          verificationUrl: newCert.verificationUrl || null,
-          skillsCovered: newCert.skillsCovered || null,
-          notes: newCert.notes || null,
-          isVerified: newCert.isVerified,
-          isPublic: true,
-        }),
+        body: JSON.stringify(payload),
       });
+
       if (res.status === 401) {
         handleAuthExpired();
         return;
       }
       const data = await res.json();
       if (data.success) {
-        showNotification("success", "Certificate added successfully!");
-        setNewCert({
-          title: "",
-          issuer: "",
-          issueDate: "",
-          credentialId: "",
-          verificationUrl: "",
-          skillsCovered: "",
-          notes: "",
-          isVerified: true,
-          fileUrl: "",
-        });
-        setShowAddCert(false);
+        showNotification(
+          "success",
+          editingCertId ? "Certificate updated successfully!" : "Certificate added successfully!"
+        );
+        resetCertForm();
         fetchCertificates();
       } else {
-        showNotification("error", data.error || "Failed to add certificate.");
+        showNotification("error", data.error || "Failed to save certificate.");
       }
     } catch {
-      showNotification("error", "Error adding certificate.");
+      showNotification("error", "Error saving certificate.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const resetCertForm = () => {
+    setNewCert({
+      title: "",
+      issuer: "",
+      issueDate: "",
+      credentialId: "",
+      verificationUrl: "",
+      skillsCovered: "",
+      notes: "",
+      isVerified: true,
+      isPublic: true,
+    });
+    setEditingCertId(null);
+    setShowAddCert(false);
+  };
+
+  const startEditCert = (cert: any) => {
+    setNewCert({
+      title: cert.title,
+      issuer: cert.issuer || "",
+      issueDate: cert.issueDate ? cert.issueDate.split("T")[0] : "",
+      credentialId: cert.credentialId || "",
+      verificationUrl: cert.verificationUrl || "",
+      skillsCovered: cert.skillsCovered || "",
+      notes: cert.notes || "",
+      isVerified: cert.isVerified ?? true,
+      isPublic: cert.isPublic ?? true,
+    });
+    setEditingCertId(cert.id);
+    setShowAddCert(true);
+  };
+
+  const toggleCertPublish = async (cert: any) => {
+    try {
+      const res = await fetch(`/api/certificates/${cert.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPublic: !cert.isPublic }),
+      });
+      if (res.ok) {
+        showNotification("success", cert.isPublic ? "Certificate unpublished." : "Certificate published!");
+        fetchCertificates();
+      }
+    } catch {
+      showNotification("error", "Failed to update publication status.");
     }
   };
 
@@ -394,41 +455,108 @@ export default function PortfolioManagerPage() {
     }
   };
 
-  const addProject = async (e: React.FormEvent) => {
+  // ─── Project Handlers ───
+  const saveProject = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
-      const res = await fetch("/api/projects", {
-        method: "POST",
+      const method = editingProjectId ? "PATCH" : "POST";
+      const url = editingProjectId ? `/api/projects/${editingProjectId}` : "/api/projects";
+
+      // Validate repository URL per Requirement 4
+      let cleanRepoUrl = newProject.githubUrl.trim();
+      if (cleanRepoUrl === "https://github.com/rsherawat2007-create" || cleanRepoUrl === "https://github.com/rsherawat2007-create/") {
+        cleanRepoUrl = "";
+      }
+
+      const payload = {
+        name: newProject.name,
+        category: newProject.category || null,
+        summary: newProject.summary || null,
+        problemStatement: newProject.problemStatement || null,
+        myContribution: newProject.myContribution || null,
+        technologies: newProject.technologies || null,
+        status: newProject.status,
+        githubUrl: cleanRepoUrl || null,
+        demoUrl: newProject.demoUrl.trim() || null,
+        isPublic: newProject.isPublic,
+      };
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newProject.name,
-          summary: newProject.summary,
-          problemStatement: newProject.problemStatement,
-          myContribution: newProject.myContribution,
-          technologies: newProject.technologies,
-          status: newProject.status,
-          githubUrl: newProject.githubUrl,
-          demoUrl: newProject.demoUrl,
-          isPublic: newProject.isPublic,
-        }),
+        body: JSON.stringify(payload),
       });
+
       if (res.status === 401) {
         handleAuthExpired();
         return;
       }
       const data = await res.json();
       if (data.success) {
-        showNotification("success", "Project saved successfully!");
-        setShowAddProject(false);
+        showNotification(
+          "success",
+          editingProjectId ? "Project updated successfully!" : "Project created successfully!"
+        );
+        resetProjectForm();
         fetchProjects();
       } else {
-        showNotification("error", data.error || "Failed to add project.");
+        showNotification("error", data.error || "Failed to save project.");
       }
     } catch {
-      showNotification("error", "Error adding project.");
+      showNotification("error", "Error saving project.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const resetProjectForm = () => {
+    setNewProject({
+      name: "",
+      category: "",
+      summary: "",
+      problemStatement: "",
+      myContribution: "",
+      technologies: "",
+      status: "in_development",
+      githubUrl: "",
+      demoUrl: "",
+      isPublic: true,
+    });
+    setEditingProjectId(null);
+    setShowAddProject(false);
+  };
+
+  const startEditProject = (proj: any) => {
+    setNewProject({
+      name: proj.name,
+      category: proj.category || "",
+      summary: proj.summary || "",
+      problemStatement: proj.problemStatement || "",
+      myContribution: proj.myContribution || "",
+      technologies: proj.technologies || "",
+      status: proj.status || "in_development",
+      githubUrl: proj.githubUrl || "",
+      demoUrl: proj.demoUrl || "",
+      isPublic: proj.isPublic ?? true,
+    });
+    setEditingProjectId(proj.id);
+    setShowAddProject(true);
+  };
+
+  const toggleProjectPublish = async (proj: any) => {
+    try {
+      const res = await fetch(`/api/projects/${proj.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPublic: !proj.isPublic }),
+      });
+      if (res.ok) {
+        showNotification("success", proj.isPublic ? "Project unpublished from public view." : "Project published live!");
+        fetchProjects();
+      }
+    } catch {
+      showNotification("error", "Failed to update publication status.");
     }
   };
 
@@ -449,19 +577,101 @@ export default function PortfolioManagerPage() {
     }
   };
 
-  const handleResumeUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // ─── Skills Handlers ───
+  const saveSkill = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
     try {
-      setSaving(true);
-      const url = await handleFileUpload(file, "resumes");
-      setResumeUrl(url);
-      setHasResume(true);
-      showNotification("success", "Resume PDF uploaded successfully!");
-    } catch (err: any) {
-      showNotification("error", err.message || "Resume upload failed.");
+      const method = editingSkillId ? "PATCH" : "POST";
+      const url = editingSkillId ? `/api/skills/${editingSkillId}` : "/api/skills";
+
+      const payload = {
+        name: newSkill.name,
+        category: newSkill.category,
+        status: newSkill.status,
+        notes: newSkill.notes || null,
+        isPublic: newSkill.isPublic,
+      };
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.status === 401) {
+        handleAuthExpired();
+        return;
+      }
+      const data = await res.json();
+      if (data.success) {
+        showNotification("success", editingSkillId ? "Skill updated!" : "Skill created!");
+        resetSkillForm();
+        fetchSkills();
+      } else {
+        showNotification("error", data.error || "Failed to save skill.");
+      }
+    } catch {
+      showNotification("error", "Error saving skill.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const resetSkillForm = () => {
+    setNewSkill({
+      name: "",
+      category: "Programming",
+      status: "practiced",
+      notes: "",
+      isPublic: true,
+    });
+    setEditingSkillId(null);
+    setShowAddSkill(false);
+  };
+
+  const startEditSkill = (skill: any) => {
+    setNewSkill({
+      name: skill.name,
+      category: skill.category || "Programming",
+      status: skill.status || "practiced",
+      notes: skill.notes || "",
+      isPublic: skill.isPublic ?? true,
+    });
+    setEditingSkillId(skill.id);
+    setShowAddSkill(true);
+  };
+
+  const toggleSkillPublish = async (skill: any) => {
+    try {
+      const res = await fetch(`/api/skills/${skill.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPublic: !skill.isPublic }),
+      });
+      if (res.ok) {
+        showNotification("success", skill.isPublic ? "Skill hidden." : "Skill published!");
+        fetchSkills();
+      }
+    } catch {
+      showNotification("error", "Failed to update skill.");
+    }
+  };
+
+  const deleteSkill = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this skill?")) return;
+    try {
+      const res = await fetch(`/api/skills/${id}`, { method: "DELETE" });
+      if (res.status === 401) {
+        handleAuthExpired();
+        return;
+      }
+      if (res.ok) {
+        showNotification("success", "Skill deleted.");
+        fetchSkills();
+      }
+    } catch {
+      showNotification("error", "Failed to delete skill.");
     }
   };
 
@@ -469,78 +679,77 @@ export default function PortfolioManagerPage() {
     return (
       <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col items-center justify-center gap-3">
         <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" />
-        <span className="text-xs font-mono text-slate-400">Verifying Administrator Session...</span>
+        <span className="text-sm font-mono text-slate-400">Verifying administrator session...</span>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#07090e] text-[#f1f5f9] flex flex-col">
-      {/* Top Bar */}
-      <header className="h-16 border-b border-[#1c2436] bg-[#0c101a]/95 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-40">
+    <div className="min-h-screen bg-[#06080e] text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200 flex flex-col">
+      {/* Top Header Bar */}
+      <header className="border-b border-[#1b2336] bg-[#090d18]/90 backdrop-blur-md sticky top-0 z-40 px-4 sm:px-8 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link
             href="/"
-            className="flex items-center gap-2 text-xs font-mono text-slate-400 hover:text-white transition-colors"
+            className="p-2 rounded-xl bg-[#111726] hover:bg-[#182136] text-slate-400 hover:text-white transition-colors"
+            title="Return to Public Portfolio"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Back to Public Portfolio</span>
           </Link>
-          <span className="text-slate-600">|</span>
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-cyan-600 flex items-center justify-center text-xs font-bold text-white shadow-sm shadow-cyan-500/20">
-              <Shield className="w-3.5 h-3.5" />
+            <div className="w-7 h-7 rounded-lg bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400 font-mono text-xs font-bold">
+              <Shield className="w-4 h-4" />
             </div>
-            <h1 className="text-sm font-bold text-white tracking-wide">
-              Portfolio Content Manager
-            </h1>
+            <div>
+              <h1 className="text-sm font-bold text-white font-mono flex items-center gap-2">
+                <span>PORTFOLIO MANAGER</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">
+                  AUTHENTICATED
+                </span>
+              </h1>
+              <span className="text-[11px] text-slate-400 font-mono">
+                Logged in as: {adminUser?.email}
+              </span>
+            </div>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          {adminUser && (
-            <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#141b2c] border border-[#222d44] text-xs font-mono text-slate-300">
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              <span>{adminUser.email}</span>
-            </div>
-          )}
-
           <Link
             href="/"
             target="_blank"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#141b2c] border border-[#222d44] text-xs font-medium text-slate-200 hover:text-white hover:bg-[#1a2338] transition-colors"
+            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-mono bg-[#111726] hover:bg-[#182136] text-slate-300 hover:text-white border border-[#222d44] transition-colors"
           >
-            <Eye className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Preview Public Site</span>
+            <Eye className="w-3.5 h-3.5" />
+            <span>View Live Site</span>
           </Link>
 
-          <button
+          <Button
             onClick={handleLogout}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-950/40 hover:bg-red-900/60 border border-red-800/50 text-xs font-medium text-red-300 hover:text-white transition-colors cursor-pointer"
+            variant="outline"
+            className="text-xs font-mono text-red-400 hover:text-red-300 hover:bg-red-950/30 border-red-900/40 flex items-center gap-1.5"
           >
-            <LogOut className="w-3.5 h-3.5 text-red-400" />
-            <span>Sign Out</span>
-          </button>
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Logout</span>
+          </Button>
         </div>
       </header>
 
       {/* Notification Toast */}
       {statusMsg && (
-        <div className="fixed top-20 right-6 z-50 animate-fade-in">
-          <div
-            className={`px-4 py-3 rounded-xl border shadow-xl flex items-center gap-2 text-sm font-medium ${
-              statusMsg.type === "success"
-                ? "bg-emerald-950/90 border-emerald-700 text-emerald-300"
-                : "bg-red-950/90 border-red-700 text-red-300"
-            }`}
-          >
-            {statusMsg.type === "success" ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            ) : (
-              <AlertCircle className="w-4 h-4 text-red-400" />
-            )}
-            <span>{statusMsg.text}</span>
-          </div>
+        <div
+          className={`fixed top-16 right-4 z-50 p-4 rounded-xl text-xs font-mono border shadow-2xl flex items-center gap-2.5 transition-all ${
+            statusMsg.type === "success"
+              ? "bg-emerald-950/90 border-emerald-700 text-emerald-200"
+              : "bg-red-950/90 border-red-700 text-red-200"
+          }`}
+        >
+          {statusMsg.type === "success" ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+          )}
+          <span>{statusMsg.text}</span>
         </div>
       )}
 
@@ -555,7 +764,8 @@ export default function PortfolioManagerPage() {
             { id: "profile", label: "Personal Profile", icon: User },
             { id: "education", label: "Education & Campus", icon: GraduationCap },
             { id: "certificates", label: "Certificates & Uploads", icon: Award },
-            { id: "projects", label: "Real Projects", icon: FolderKanban },
+            { id: "projects", label: "Projects & Repos", icon: FolderKanban },
+            { id: "skills", label: "Technical Skills", icon: Cpu },
             { id: "resume", label: "Resume PDF", icon: FileText },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -566,7 +776,7 @@ export default function PortfolioManagerPage() {
                 onClick={() => setActiveTab(tab.id as any)}
                 className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left ${
                   isActive
-                    ? "bg-blue-600/20 text-blue-400 border border-blue-500/40 shadow-sm"
+                    ? "bg-cyan-600/20 text-cyan-300 border border-cyan-500/40 shadow-sm"
                     : "text-slate-400 hover:text-slate-200 hover:bg-[#121827]"
                 }`}
               >
@@ -583,104 +793,102 @@ export default function PortfolioManagerPage() {
           {activeTab === "profile" && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-xl font-bold text-white">Personal Profile Details</h2>
+                <h2 className="text-xl font-bold text-white">Personal Profile</h2>
                 <p className="text-xs text-slate-400 mt-1">
-                  Updates saved here reflect directly on your public portfolio hero and contact sections.
+                  Updates here reflect dynamically on the homepage hero, about, and metadata sections.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-mono text-slate-300 block mb-1.5">Full Name</label>
+                <div className="sm:col-span-2">
+                  <label className="text-xs font-mono text-slate-300 block mb-1">Full Name</label>
                   <input
                     type="text"
                     value={profile.fullName}
                     onChange={(e) => setProfile({ ...profile, fullName: e.target.value })}
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#07090e] border border-[#222d44] text-white text-sm focus:outline-none focus:border-blue-500"
+                    className="w-full px-3.5 py-2 rounded-xl bg-[#080b12] border border-[#222d44] text-white text-sm"
                   />
                 </div>
 
-                <div>
-                  <label className="text-xs font-mono text-slate-300 block mb-1.5">Professional Headline</label>
+                <div className="sm:col-span-2">
+                  <label className="text-xs font-mono text-slate-300 block mb-1">Headline</label>
                   <input
                     type="text"
                     value={profile.headline}
                     onChange={(e) => setProfile({ ...profile, headline: e.target.value })}
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#07090e] border border-[#222d44] text-white text-sm focus:outline-none focus:border-blue-500"
+                    className="w-full px-3.5 py-2 rounded-xl bg-[#080b12] border border-[#222d44] text-white text-sm"
                   />
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="text-xs font-mono text-slate-300 block mb-1.5">
-                    Short Biography &amp; Technical Mission
-                  </label>
+                  <label className="text-xs font-mono text-slate-300 block mb-1">Biography / About</label>
                   <textarea
                     rows={6}
                     value={profile.about}
                     onChange={(e) => setProfile({ ...profile, about: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#07090e] border border-[#222d44] text-white text-sm focus:outline-none focus:border-blue-500 leading-relaxed font-sans"
+                    className="w-full px-3.5 py-2 rounded-xl bg-[#080b12] border border-[#222d44] text-white text-sm leading-relaxed"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-mono text-slate-300 block mb-1.5">Location / City</label>
+                  <label className="text-xs font-mono text-slate-300 block mb-1">Location</label>
                   <input
                     type="text"
                     value={profile.location}
                     onChange={(e) => setProfile({ ...profile, location: e.target.value })}
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#07090e] border border-[#222d44] text-white text-sm focus:outline-none focus:border-blue-500"
+                    className="w-full px-3.5 py-2 rounded-xl bg-[#080b12] border border-[#222d44] text-white text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-mono text-slate-300 block mb-1.5">Professional Email</label>
+                  <label className="text-xs font-mono text-slate-300 block mb-1">Contact Email</label>
                   <input
                     type="email"
                     value={profile.email}
                     onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#07090e] border border-[#222d44] text-white text-sm focus:outline-none focus:border-blue-500"
+                    className="w-full px-3.5 py-2 rounded-xl bg-[#080b12] border border-[#222d44] text-white text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-mono text-slate-300 block mb-1.5">GitHub Profile URL</label>
+                  <label className="text-xs font-mono text-slate-300 block mb-1">GitHub Profile URL</label>
                   <input
                     type="url"
                     value={profile.githubUrl}
                     onChange={(e) => setProfile({ ...profile, githubUrl: e.target.value })}
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#07090e] border border-[#222d44] text-white text-sm focus:outline-none focus:border-blue-500"
+                    className="w-full px-3.5 py-2 rounded-xl bg-[#080b12] border border-[#222d44] text-white text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-mono text-slate-300 block mb-1.5">LinkedIn Profile URL</label>
+                  <label className="text-xs font-mono text-slate-300 block mb-1">LinkedIn Profile URL</label>
                   <input
                     type="url"
                     value={profile.linkedinUrl}
                     onChange={(e) => setProfile({ ...profile, linkedinUrl: e.target.value })}
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#07090e] border border-[#222d44] text-white text-sm focus:outline-none focus:border-blue-500"
+                    className="w-full px-3.5 py-2 rounded-xl bg-[#080b12] border border-[#222d44] text-white text-sm"
                   />
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="text-xs font-mono text-slate-300 block mb-1.5">Technical Interests</label>
+                  <label className="text-xs font-mono text-slate-300 block mb-1">Technical Interests (Comma Separated)</label>
                   <input
                     type="text"
                     value={profile.techInterests}
                     onChange={(e) => setProfile({ ...profile, techInterests: e.target.value })}
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#07090e] border border-[#222d44] text-white text-sm focus:outline-none focus:border-blue-500"
+                    className="w-full px-3.5 py-2 rounded-xl bg-[#080b12] border border-[#222d44] text-white text-sm"
                   />
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-[#1b2336] flex justify-end">
+              <div className="flex justify-end pt-4 border-t border-[#1b2336]">
                 <Button
                   onClick={saveProfile}
                   disabled={saving}
-                  className="bg-blue-600 hover:bg-blue-500 text-white font-semibold flex items-center gap-2"
+                  className="bg-cyan-600 hover:bg-cyan-500 text-white font-medium flex items-center gap-2"
                 >
                   <Save className="w-4 h-4" />
-                  <span>{saving ? "Saving..." : "Save Profile Details"}</span>
+                  <span>Save Profile Changes</span>
                 </Button>
               </div>
             </div>
@@ -690,94 +898,82 @@ export default function PortfolioManagerPage() {
           {activeTab === "education" && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-xl font-bold text-white">Education &amp; Academic Background</h2>
+                <h2 className="text-xl font-bold text-white">Education &amp; Academic Timeline</h2>
                 <p className="text-xs text-slate-400 mt-1">
-                  Configure your university, degree, semester, and address for recruiter clarity.
+                  Manage your academic enrollment details and campus information.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-mono text-slate-300 block mb-1.5">University / College</label>
+                <div className="sm:col-span-2">
+                  <label className="text-xs font-mono text-slate-300 block mb-1">Institution</label>
                   <input
                     type="text"
                     value={education.institution}
                     onChange={(e) => setEducation({ ...education, institution: e.target.value })}
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#07090e] border border-[#222d44] text-white text-sm focus:outline-none focus:border-blue-500"
+                    className="w-full px-3.5 py-2 rounded-xl bg-[#080b12] border border-[#222d44] text-white text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-mono text-slate-300 block mb-1.5">Degree Title</label>
+                  <label className="text-xs font-mono text-slate-300 block mb-1">Degree / Qualification</label>
                   <input
                     type="text"
                     value={education.qualification}
                     onChange={(e) => setEducation({ ...education, qualification: e.target.value })}
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#07090e] border border-[#222d44] text-white text-sm focus:outline-none focus:border-blue-500"
+                    className="w-full px-3.5 py-2 rounded-xl bg-[#080b12] border border-[#222d44] text-white text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-mono text-slate-300 block mb-1.5">Specialization</label>
+                  <label className="text-xs font-mono text-slate-300 block mb-1">Specialization</label>
                   <input
                     type="text"
                     value={education.specialization}
                     onChange={(e) => setEducation({ ...education, specialization: e.target.value })}
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#07090e] border border-[#222d44] text-white text-sm focus:outline-none focus:border-blue-500"
+                    className="w-full px-3.5 py-2 rounded-xl bg-[#080b12] border border-[#222d44] text-white text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-mono text-slate-300 block mb-1.5">Current Semester / Year</label>
+                  <label className="text-xs font-mono text-slate-300 block mb-1">Current Semester</label>
                   <input
                     type="text"
                     value={education.semester}
                     onChange={(e) => setEducation({ ...education, semester: e.target.value })}
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#07090e] border border-[#222d44] text-white text-sm focus:outline-none focus:border-blue-500"
+                    className="w-full px-3.5 py-2 rounded-xl bg-[#080b12] border border-[#222d44] text-white text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs font-mono text-slate-300 block mb-1.5">Start Year</label>
-                  <input
-                    type="text"
-                    value={education.startDate}
-                    onChange={(e) => setEducation({ ...education, startDate: e.target.value })}
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#07090e] border border-[#222d44] text-white text-sm focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-mono text-slate-300 block mb-1.5">Expected Graduation Year</label>
+                  <label className="text-xs font-mono text-slate-300 block mb-1">Expected Graduation Year</label>
                   <input
                     type="text"
                     value={education.endDate}
                     onChange={(e) => setEducation({ ...education, endDate: e.target.value })}
-                    className="w-full px-3.5 py-2 rounded-xl bg-[#07090e] border border-[#222d44] text-white text-sm focus:outline-none focus:border-blue-500"
+                    className="w-full px-3.5 py-2 rounded-xl bg-[#080b12] border border-[#222d44] text-white text-sm"
                   />
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="text-xs font-mono text-slate-300 block mb-1.5">
-                    Campus Address &amp; Academic Notes
-                  </label>
+                  <label className="text-xs font-mono text-slate-300 block mb-1">Campus Notes &amp; Highlights</label>
                   <textarea
                     rows={3}
                     value={education.notes}
                     onChange={(e) => setEducation({ ...education, notes: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#07090e] border border-[#222d44] text-white text-sm focus:outline-none focus:border-blue-500 font-sans"
+                    className="w-full px-3.5 py-2 rounded-xl bg-[#080b12] border border-[#222d44] text-white text-sm"
                   />
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-[#1b2336] flex justify-end">
+              <div className="flex justify-end pt-4 border-t border-[#1b2336]">
                 <Button
                   onClick={saveEducation}
                   disabled={saving}
-                  className="bg-blue-600 hover:bg-blue-500 text-white font-semibold flex items-center gap-2"
+                  className="bg-cyan-600 hover:bg-cyan-500 text-white font-medium flex items-center gap-2"
                 >
                   <Save className="w-4 h-4" />
-                  <span>{saving ? "Saving..." : "Save Education"}</span>
+                  <span>Save Education Details</span>
                 </Button>
               </div>
             </div>
@@ -788,49 +984,50 @@ export default function PortfolioManagerPage() {
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-xl font-bold text-white">Certificates &amp; Achievements</h2>
+                  <h2 className="text-xl font-bold text-white">Certificates &amp; Credentials</h2>
                   <p className="text-xs text-slate-400 mt-1">
-                    Uploaded certificates are sorted chronologically by issue date and displayed with verified badges.
+                    Manage official certifications, verification links, and publication visibility.
                   </p>
                 </div>
                 <Button
-                  onClick={() => setShowAddCert(!showAddCert)}
-                  className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5"
+                  onClick={() => {
+                    if (showAddCert) resetCertForm();
+                    else setShowAddCert(true);
+                  }}
+                  className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold flex items-center gap-1.5"
                 >
                   <Plus className="w-4 h-4" />
                   <span>{showAddCert ? "Cancel" : "Add Certificate"}</span>
                 </Button>
               </div>
 
-              {/* Form to add a certificate */}
+              {/* Add/Edit Certificate Form */}
               {showAddCert && (
                 <form
-                  onSubmit={addCertificate}
-                  className="p-5 rounded-2xl bg-[#080b12] border border-blue-500/30 space-y-4"
+                  onSubmit={saveCertificate}
+                  className="p-5 rounded-2xl bg-[#080b12] border border-purple-500/30 space-y-4"
                 >
                   <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
-                    New Certificate Entry
+                    {editingCertId ? "Edit Certificate Record" : "New Certificate Record"}
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="text-xs font-mono text-slate-300 block mb-1">Certificate Title</label>
+                      <label className="text-xs font-mono text-slate-300 block mb-1">Title *</label>
                       <input
                         type="text"
                         required
                         value={newCert.title}
                         onChange={(e) => setNewCert({ ...newCert, title: e.target.value })}
-                        placeholder="e.g. Ethical Hacking"
                         className="w-full px-3 py-2 rounded-xl bg-[#0c101a] border border-[#222d44] text-white text-sm"
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-mono text-slate-300 block mb-1">Issuing Organization</label>
+                      <label className="text-xs font-mono text-slate-300 block mb-1">Issuing Organization *</label>
                       <input
                         type="text"
                         required
                         value={newCert.issuer}
                         onChange={(e) => setNewCert({ ...newCert, issuer: e.target.value })}
-                        placeholder="e.g. Microsoft or ASD Academy"
                         className="w-full px-3 py-2 rounded-xl bg-[#0c101a] border border-[#222d44] text-white text-sm"
                       />
                     </div>
@@ -838,19 +1035,17 @@ export default function PortfolioManagerPage() {
                       <label className="text-xs font-mono text-slate-300 block mb-1">Issue Date</label>
                       <input
                         type="date"
-                        required
                         value={newCert.issueDate}
                         onChange={(e) => setNewCert({ ...newCert, issueDate: e.target.value })}
                         className="w-full px-3 py-2 rounded-xl bg-[#0c101a] border border-[#222d44] text-white text-sm"
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-mono text-slate-300 block mb-1">Credential ID (if any)</label>
+                      <label className="text-xs font-mono text-slate-300 block mb-1">Credential ID</label>
                       <input
                         type="text"
                         value={newCert.credentialId}
                         onChange={(e) => setNewCert({ ...newCert, credentialId: e.target.value })}
-                        placeholder="e.g. CERT-2026-001596 or w6JFG-48DB"
                         className="w-full px-3 py-2 rounded-xl bg-[#0c101a] border border-[#222d44] text-white text-sm"
                       />
                     </div>
@@ -865,67 +1060,94 @@ export default function PortfolioManagerPage() {
                       />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="text-xs font-mono text-slate-300 block mb-1">Description &amp; Score</label>
+                      <label className="text-xs font-mono text-slate-300 block mb-1">Skills Covered (comma separated)</label>
+                      <input
+                        type="text"
+                        value={newCert.skillsCovered}
+                        onChange={(e) => setNewCert({ ...newCert, skillsCovered: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#0c101a] border border-[#222d44] text-white text-sm"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-mono text-slate-300 block mb-1">Description / Notes</label>
                       <textarea
                         rows={2}
                         value={newCert.notes}
                         onChange={(e) => setNewCert({ ...newCert, notes: e.target.value })}
-                        placeholder="Performance score or key topics verified"
                         className="w-full px-3 py-2 rounded-xl bg-[#0c101a] border border-[#222d44] text-white text-sm"
                       />
                     </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="certIsPublic"
+                        checked={newCert.isPublic}
+                        onChange={(e) => setNewCert({ ...newCert, isPublic: e.target.checked })}
+                        className="w-4 h-4 rounded text-purple-600 bg-[#0c101a] border-[#222d44]"
+                      />
+                      <label htmlFor="certIsPublic" className="text-xs font-mono text-slate-300 cursor-pointer">
+                        Published (visible to public visitors)
+                      </label>
+                    </div>
                   </div>
                   <div className="flex justify-end gap-3 pt-2">
-                    <Button type="button" variant="outline" onClick={() => setShowAddCert(false)}>
+                    <Button type="button" variant="outline" onClick={resetCertForm}>
                       Cancel
                     </Button>
-                    <Button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-500 text-white">
-                      Save Certificate
+                    <Button type="submit" disabled={saving} className="bg-purple-600 hover:bg-purple-500 text-white">
+                      {editingCertId ? "Update Certificate" : "Save Certificate"}
                     </Button>
                   </div>
                 </form>
               )}
 
-              {/* List of current certificates */}
+              {/* Certificates List */}
               <div className="space-y-3">
                 {certificates.map((cert) => (
                   <div
                     key={cert.id}
-                    className="p-4 rounded-xl bg-[#080b12] border border-[#1d273a] flex items-center justify-between gap-4"
+                    className="p-4 rounded-xl bg-[#080b12] border border-[#1d273a] flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                   >
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono text-cyan-400 font-bold">{cert.issuer}</span>
+                        <span className="text-xs font-mono text-purple-400 font-bold">{cert.issuer}</span>
                         <span className="text-xs text-slate-500">•</span>
                         <span className="text-xs text-slate-400 font-mono">
                           {cert.issueDate ? new Date(cert.issueDate).toLocaleDateString() : ""}
                         </span>
-                        {cert.credentialId && (
-                          <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800">
-                            ID: {cert.credentialId}
-                          </span>
-                        )}
+                        <span
+                          className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+                            cert.isPublic
+                              ? "bg-emerald-950 text-emerald-400 border-emerald-800"
+                              : "bg-amber-950 text-amber-400 border-amber-800"
+                          }`}
+                        >
+                          {cert.isPublic ? "LIVE" : "DRAFT"}
+                        </span>
                       </div>
                       <h4 className="text-base font-bold text-white">{cert.title}</h4>
                       {cert.notes && <p className="text-xs text-slate-400 max-w-xl">{cert.notes}</p>}
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      {cert.verificationUrl && (
-                        <a
-                          href={cert.verificationUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="p-2 rounded-lg bg-[#141b2c] hover:bg-[#1a2338] text-slate-300 hover:text-white transition-colors"
-                          title="Open Verification Link"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
-                      )}
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <button
+                        onClick={() => toggleCertPublish(cert)}
+                        className="p-2 rounded-lg bg-[#141b2c] hover:bg-[#1a2338] text-slate-300 hover:text-white transition-colors"
+                        title={cert.isPublic ? "Unpublish from public view" : "Publish to live portfolio"}
+                      >
+                        {cert.isPublic ? <EyeOff className="w-4 h-4 text-amber-400" /> : <Eye className="w-4 h-4 text-emerald-400" />}
+                      </button>
+                      <button
+                        onClick={() => startEditCert(cert)}
+                        className="p-2 rounded-lg bg-[#141b2c] hover:bg-[#1a2338] text-slate-300 hover:text-white transition-colors"
+                        title="Edit Certificate"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => deleteCertificate(cert.id)}
                         className="p-2 rounded-lg bg-red-950/30 hover:bg-red-950 text-red-400 transition-colors"
-                        title="Delete"
+                        title="Delete Certificate"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -941,37 +1163,50 @@ export default function PortfolioManagerPage() {
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-xl font-bold text-white">Featured Projects</h2>
+                  <h2 className="text-xl font-bold text-white">Featured Projects &amp; Repositories</h2>
                   <p className="text-xs text-slate-400 mt-1">
-                    Manage your genuine codebases: NEXCLASS, Tic Tac Toe LAN, Contact Management, and Security Management.
+                    Manage codebases. Each project must have its own repository URL or be marked private.
                   </p>
                 </div>
                 <Button
-                  onClick={() => setShowAddProject(!showAddProject)}
-                  className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5"
+                  onClick={() => {
+                    if (showAddProject) resetProjectForm();
+                    else setShowAddProject(true);
+                  }}
+                  className="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold flex items-center gap-1.5"
                 >
                   <Plus className="w-4 h-4" />
                   <span>{showAddProject ? "Cancel" : "Add Project"}</span>
                 </Button>
               </div>
 
-              {/* Add Project Form */}
+              {/* Add/Edit Project Form */}
               {showAddProject && (
                 <form
-                  onSubmit={addProject}
-                  className="p-5 rounded-2xl bg-[#080b12] border border-blue-500/30 space-y-4"
+                  onSubmit={saveProject}
+                  className="p-5 rounded-2xl bg-[#080b12] border border-cyan-500/30 space-y-4"
                 >
                   <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
-                    New Project Record
+                    {editingProjectId ? "Edit Project Record" : "New Project Record"}
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="sm:col-span-2">
-                      <label className="text-xs font-mono text-slate-300 block mb-1">Project Name</label>
+                      <label className="text-xs font-mono text-slate-300 block mb-1">Project Name *</label>
                       <input
                         type="text"
                         required
                         value={newProject.name}
                         onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#0c101a] border border-[#222d44] text-white text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-mono text-slate-300 block mb-1">Category / Tagline</label>
+                      <input
+                        type="text"
+                        value={newProject.category}
+                        onChange={(e) => setNewProject({ ...newProject, category: e.target.value })}
+                        placeholder="e.g. Systems & Socket Programming"
                         className="w-full px-3 py-2 rounded-xl bg-[#0c101a] border border-[#222d44] text-white text-sm"
                       />
                     </div>
@@ -985,14 +1220,38 @@ export default function PortfolioManagerPage() {
                         <option value="in_development">In Progress / Active Development</option>
                         <option value="completed">Completed</option>
                         <option value="planned">Planned / Prototype</option>
+                        <option value="testing">Testing & Verification</option>
                       </select>
                     </div>
-                    <div>
-                      <label className="text-xs font-mono text-slate-300 block mb-1">GitHub Repository URL</label>
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-mono text-slate-300 block mb-1">
+                        Specific Repository URL (Do NOT use profile URL)
+                      </label>
                       <input
                         type="url"
                         value={newProject.githubUrl}
                         onChange={(e) => setNewProject({ ...newProject, githubUrl: e.target.value })}
+                        placeholder="https://github.com/rsherawat2007-create/nexclass"
+                        className="w-full px-3 py-2 rounded-xl bg-[#0c101a] border border-[#222d44] text-white text-sm"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-mono text-slate-300 block mb-1">Live Demo URL (Optional)</label>
+                      <input
+                        type="url"
+                        value={newProject.demoUrl}
+                        onChange={(e) => setNewProject({ ...newProject, demoUrl: e.target.value })}
+                        placeholder="https://demo.example.com"
+                        className="w-full px-3 py-2 rounded-xl bg-[#0c101a] border border-[#222d44] text-white text-sm"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-mono text-slate-300 block mb-1">Technologies (Comma Separated)</label>
+                      <input
+                        type="text"
+                        value={newProject.technologies}
+                        onChange={(e) => setNewProject({ ...newProject, technologies: e.target.value })}
+                        placeholder="Next.js, Python, TCP Sockets, Tailwind CSS"
                         className="w-full px-3 py-2 rounded-xl bg-[#0c101a] border border-[#222d44] text-white text-sm"
                       />
                     </div>
@@ -1014,13 +1273,25 @@ export default function PortfolioManagerPage() {
                         className="w-full px-3 py-2 rounded-xl bg-[#0c101a] border border-[#222d44] text-white text-sm"
                       />
                     </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="projectIsPublic"
+                        checked={newProject.isPublic}
+                        onChange={(e) => setNewProject({ ...newProject, isPublic: e.target.checked })}
+                        className="w-4 h-4 rounded text-cyan-600 bg-[#0c101a] border-[#222d44]"
+                      />
+                      <label htmlFor="projectIsPublic" className="text-xs font-mono text-slate-300 cursor-pointer">
+                        Published (visible to public visitors)
+                      </label>
+                    </div>
                   </div>
                   <div className="flex justify-end gap-3 pt-2">
-                    <Button type="button" variant="outline" onClick={() => setShowAddProject(false)}>
+                    <Button type="button" variant="outline" onClick={resetProjectForm}>
                       Cancel
                     </Button>
-                    <Button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-500 text-white">
-                      Save Project
+                    <Button type="submit" disabled={saving} className="bg-cyan-600 hover:bg-cyan-500 text-white">
+                      {editingProjectId ? "Update Project" : "Save Project"}
                     </Button>
                   </div>
                 </form>
@@ -1037,6 +1308,15 @@ export default function PortfolioManagerPage() {
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-mono px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800">
                           {proj.status}
+                        </span>
+                        <span
+                          className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+                            proj.isPublic
+                              ? "bg-emerald-950 text-emerald-400 border-emerald-800"
+                              : "bg-amber-950 text-amber-400 border-amber-800"
+                          }`}
+                        >
+                          {proj.isPublic ? "LIVE" : "DRAFT"}
                         </span>
                         {proj.githubUrl && (
                           <a
@@ -1058,9 +1338,23 @@ export default function PortfolioManagerPage() {
 
                     <div className="flex items-center gap-2 self-end sm:self-center">
                       <button
+                        onClick={() => toggleProjectPublish(proj)}
+                        className="p-2 rounded-lg bg-[#141b2c] hover:bg-[#1a2338] text-slate-300 hover:text-white transition-colors"
+                        title={proj.isPublic ? "Unpublish from public view" : "Publish to live portfolio"}
+                      >
+                        {proj.isPublic ? <EyeOff className="w-4 h-4 text-amber-400" /> : <Eye className="w-4 h-4 text-emerald-400" />}
+                      </button>
+                      <button
+                        onClick={() => startEditProject(proj)}
+                        className="p-2 rounded-lg bg-[#141b2c] hover:bg-[#1a2338] text-slate-300 hover:text-white transition-colors"
+                        title="Edit Project"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={() => deleteProject(proj.id)}
                         className="p-2 rounded-lg bg-red-950/30 hover:bg-red-950 text-red-400 transition-colors"
-                        title="Delete"
+                        title="Delete Project"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -1071,57 +1365,196 @@ export default function PortfolioManagerPage() {
             </div>
           )}
 
-          {/* TAB 5: RESUME PDF */}
+          {/* TAB 5: SKILLS */}
+          {activeTab === "skills" && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-white">Technical Skills Management</h2>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Manage practical competencies across Programming, Cybersecurity, AI/ML, and Tools.
+                  </p>
+                </div>
+                <Button
+                  onClick={() => {
+                    if (showAddSkill) resetSkillForm();
+                    else setShowAddSkill(true);
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>{showAddSkill ? "Cancel" : "Add Skill"}</span>
+                </Button>
+              </div>
+
+              {/* Add/Edit Skill Form */}
+              {showAddSkill && (
+                <form
+                  onSubmit={saveSkill}
+                  className="p-5 rounded-2xl bg-[#080b12] border border-emerald-500/30 space-y-4"
+                >
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono">
+                    {editingSkillId ? "Edit Skill Record" : "New Skill Record"}
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-mono text-slate-300 block mb-1">Skill Name *</label>
+                      <input
+                        type="text"
+                        required
+                        value={newSkill.name}
+                        onChange={(e) => setNewSkill({ ...newSkill, name: e.target.value })}
+                        placeholder="e.g. Wireshark"
+                        className="w-full px-3 py-2 rounded-xl bg-[#0c101a] border border-[#222d44] text-white text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-mono text-slate-300 block mb-1">Category *</label>
+                      <select
+                        value={newSkill.category}
+                        onChange={(e) => setNewSkill({ ...newSkill, category: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#0c101a] border border-[#222d44] text-white text-sm"
+                      >
+                        <option value="Programming">Programming</option>
+                        <option value="Cybersecurity">Cybersecurity</option>
+                        <option value="AI / ML">AI / ML</option>
+                        <option value="Development Tools">Development Tools</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-mono text-slate-300 block mb-1">Status</label>
+                      <select
+                        value={newSkill.status}
+                        onChange={(e) => setNewSkill({ ...newSkill, status: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl bg-[#0c101a] border border-[#222d44] text-white text-sm"
+                      >
+                        <option value="demonstrated">Demonstrated / Project Experience</option>
+                        <option value="practiced">Practicing</option>
+                        <option value="learning">Learning</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-mono text-slate-300 block mb-1">Notes / Practical Context</label>
+                      <input
+                        type="text"
+                        value={newSkill.notes}
+                        onChange={(e) => setNewSkill({ ...newSkill, notes: e.target.value })}
+                        placeholder="e.g. Packet inspection, protocol analysis"
+                        className="w-full px-3 py-2 rounded-xl bg-[#0c101a] border border-[#222d44] text-white text-sm"
+                      />
+                    </div>
+                    <div className="sm:col-span-2 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="skillIsPublic"
+                        checked={newSkill.isPublic}
+                        onChange={(e) => setNewSkill({ ...newSkill, isPublic: e.target.checked })}
+                        className="w-4 h-4 rounded text-emerald-600 bg-[#0c101a] border-[#222d44]"
+                      />
+                      <label htmlFor="skillIsPublic" className="text-xs font-mono text-slate-300 cursor-pointer">
+                        Published (visible to public visitors)
+                      </label>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-3 pt-2">
+                    <Button type="button" variant="outline" onClick={resetSkillForm}>
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={saving} className="bg-emerald-600 hover:bg-emerald-500 text-white">
+                      {editingSkillId ? "Update Skill" : "Save Skill"}
+                    </Button>
+                  </div>
+                </form>
+              )}
+
+              {/* Skills List */}
+              <div className="space-y-2">
+                {skills.map((skill) => (
+                  <div
+                    key={skill.id}
+                    className="p-3.5 rounded-xl bg-[#080b12] border border-[#1d273a] flex items-center justify-between gap-4"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-white">{skill.name}</span>
+                        <span className="text-xs font-mono px-2 py-0.5 rounded bg-[#101728] text-cyan-400 border border-[#1d2c46]">
+                          {skill.category}
+                        </span>
+                        <span
+                          className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+                            skill.isPublic
+                              ? "bg-emerald-950 text-emerald-400 border-emerald-800"
+                              : "bg-amber-950 text-amber-400 border-amber-800"
+                          }`}
+                        >
+                          {skill.isPublic ? "LIVE" : "DRAFT"}
+                        </span>
+                      </div>
+                      {skill.notes && <p className="text-xs text-slate-400 mt-1">{skill.notes}</p>}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => toggleSkillPublish(skill)}
+                        className="p-2 rounded-lg bg-[#141b2c] hover:bg-[#1a2338] text-slate-300 hover:text-white transition-colors"
+                        title={skill.isPublic ? "Hide from public view" : "Publish to live portfolio"}
+                      >
+                        {skill.isPublic ? <EyeOff className="w-4 h-4 text-amber-400" /> : <Eye className="w-4 h-4 text-emerald-400" />}
+                      </button>
+                      <button
+                        onClick={() => startEditSkill(skill)}
+                        className="p-2 rounded-lg bg-[#141b2c] hover:bg-[#1a2338] text-slate-300 hover:text-white transition-colors"
+                        title="Edit Skill"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => deleteSkill(skill.id)}
+                        className="p-2 rounded-lg bg-red-950/30 hover:bg-red-950 text-red-400 transition-colors"
+                        title="Delete Skill"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 6: RESUME PDF */}
           {activeTab === "resume" && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-xl font-bold text-white">Resume Management</h2>
+                <h2 className="text-xl font-bold text-white">Curriculum Vitae / Resume</h2>
                 <p className="text-xs text-slate-400 mt-1">
-                  Upload your real resume PDF. The public &ldquo;Download Resume&rdquo; button on the homepage will immediately link to this file.
+                  Upload your latest engineering resume. Visitors can download or preview it directly.
                 </p>
               </div>
 
-              <div className="p-8 rounded-2xl bg-[#080b12] border-2 border-dashed border-[#222d44] text-center space-y-4">
-                <div className="w-12 h-12 rounded-2xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center mx-auto text-blue-400">
-                  <FileText className="w-6 h-6" />
+              <div className="p-6 rounded-2xl bg-[#080b12] border border-[#1d273a] space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white">Current Active Resume</h3>
+                    <p className="text-xs text-slate-400 font-mono">
+                      Location: /uploads/resumes/resume.pdf
+                    </p>
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <h3 className="text-base font-bold text-white">
-                    {hasResume ? "Active Resume File Loaded" : "No Resume Uploaded Yet"}
-                  </h3>
-                  <p className="text-xs text-slate-400 max-w-md mx-auto">
-                    Upload your latest resume in PDF format (up to 10MB).
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-center gap-3 pt-2">
-                  <label
-                    htmlFor="resume-upload-input"
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-colors cursor-pointer"
+                <div className="pt-2 flex items-center gap-3">
+                  <a
+                    href="/uploads/resumes/resume.pdf"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-mono font-medium bg-[#141c2e] hover:bg-[#1d2842] text-white border border-[#22304c] transition-colors"
                   >
-                    <Upload className="w-4 h-4" />
-                    <span>Upload New Resume PDF</span>
-                  </label>
-                  <input
-                    id="resume-upload-input"
-                    type="file"
-                    accept=".pdf,application/pdf"
-                    className="hidden"
-                    onChange={handleResumeUpload}
-                  />
-
-                  {hasResume && (
-                    <a
-                      href={resumeUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#141b2c] hover:bg-[#1a2338] text-slate-200 text-xs font-semibold transition-colors"
-                    >
-                      <Eye className="w-4 h-4 text-cyan-400" />
-                      <span>Preview / Download</span>
-                    </a>
-                  )}
+                    <ExternalLink className="w-4 h-4" />
+                    <span>Preview Current Document</span>
+                  </a>
                 </div>
               </div>
             </div>

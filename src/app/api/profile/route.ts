@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/session";
@@ -116,6 +117,12 @@ export async function PATCH(req: NextRequest) {
       update: dataToSave,
       create: { userId: auth.id, ...dataToSave },
     });
+
+    try {
+      revalidatePath("/");
+    } catch {
+      // ignore
+    }
 
     return ok(profile);
   } catch (e) {
