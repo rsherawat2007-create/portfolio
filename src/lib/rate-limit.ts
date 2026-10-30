@@ -1,6 +1,6 @@
 /**
- * In-memory sliding window rate limiter for security-sensitive endpoints (e.g. login).
- * Tracks failed attempts per IP address to mitigate brute-force attacks.
+ * In-memory sliding window rate limiter for security-sensitive endpoints (login, contact).
+ * Tracks attempts per IP address to mitigate brute-force and spam abuse.
  */
 
 interface RateLimitRecord {
@@ -9,9 +9,13 @@ interface RateLimitRecord {
 }
 
 const loginAttempts = new Map<string, RateLimitRecord>();
+const contactSubmissions = new Map<string, RateLimitRecord>();
 
-const MAX_ATTEMPTS = 5;
-const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+
+const CONTACT_MAX_SUBMISSIONS = 5;
+const CONTACT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 
 export function checkLoginRateLimit(ip: string): {
   allowed: boolean;
@@ -21,16 +25,15 @@ export function checkLoginRateLimit(ip: string): {
   const now = Date.now();
   const record = loginAttempts.get(ip);
 
-  // If no record exists or window expired, reset
   if (!record || now > record.resetAt) {
     return {
       allowed: true,
-      remainingAttempts: MAX_ATTEMPTS,
+      remainingAttempts: LOGIN_MAX_ATTEMPTS,
       retryAfterSeconds: 0,
     };
   }
 
-  if (record.attempts >= MAX_ATTEMPTS) {
+  if (record.attempts >= LOGIN_MAX_ATTEMPTS) {
     const retryAfterSeconds = Math.max(1, Math.ceil((record.resetAt - now) / 1000));
     return {
       allowed: false,
@@ -41,7 +44,7 @@ export function checkLoginRateLimit(ip: string): {
 
   return {
     allowed: true,
-    remainingAttempts: Math.max(0, MAX_ATTEMPTS - record.attempts),
+    remainingAttempts: Math.max(0, LOGIN_MAX_ATTEMPTS - record.attempts),
     retryAfterSeconds: 0,
   };
 }
@@ -53,7 +56,7 @@ export function recordFailedLogin(ip: string): void {
   if (!record || now > record.resetAt) {
     loginAttempts.set(ip, {
       attempts: 1,
-      resetAt: now + WINDOW_MS,
+      resetAt: now + LOGIN_WINDOW_MS,
     });
   } else {
     record.attempts += 1;
@@ -62,4 +65,55 @@ export function recordFailedLogin(ip: string): void {
 
 export function resetLoginRateLimit(ip: string): void {
   loginAttempts.delete(ip);
+}
+
+// ── Contact Submission Rate Limiting ──
+export function checkContactRateLimit(ip: string): {
+  allowed: boolean;
+  remainingAttempts: number;
+  retryAfterSeconds: number;
+} {
+  const now = Date.now();
+  const record = contactSubmissions.get(ip);
+
+  if (!record || now > record.resetAt) {
+    return {
+      allowed: true,
+      remainingAttempts: CONTACT_MAX_SUBMISSIONS,
+      retryAfterSeconds: 0,
+    };
+  }
+
+  if (record.attempts >= CONTACT_MAX_SUBMISSIONS) {
+    const retryAfterSeconds = Math.max(1, Math.ceil((record.resetAt - now) / 1000));
+    return {
+      allowed: false,
+      remainingAttempts: 0,
+      retryAfterSeconds,
+    };
+  }
+
+  return {
+    allowed: true,
+    remainingAttempts: Math.max(0, CONTACT_MAX_SUBMISSIONS - record.attempts),
+    retryAfterSeconds: 0,
+  };
+}
+
+export function recordContactSubmission(ip: string): void {
+  const now = Date.now();
+  const record = contactSubmissions.get(ip);
+
+  if (!record || now > record.resetAt) {
+    contactSubmissions.set(ip, {
+      attempts: 1,
+      resetAt: now + CONTACT_WINDOW_MS,
+    });
+  } else {
+    record.attempts += 1;
+  }
+}
+
+export function resetContactRateLimit(ip: string): void {
+  contactSubmissions.delete(ip);
 }
